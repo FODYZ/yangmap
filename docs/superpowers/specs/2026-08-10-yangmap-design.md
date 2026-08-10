@@ -185,16 +185,27 @@ gNMI      /state/router[router-name=?]/route-table/unicast/ipv4
 
 Deux règles, et rien de plus :
 
-1. Retirer le préfixe de module du premier segment (`nokia-state:state` ⟶ `state`).
+1. Retirer le préfixe de module de **chaque** segment qui en porte un
+   (`nokia-state:state` ⟶ `state`).
 2. Marquer les clés attendues (`[router-name]` ⟶ `[router-name=?]`), pour que le
    consommateur sache qu'une valeur doit être fournie.
 
 L'index conserve **les deux formes** : le xpath canonique, qui est l'identité du
-nœud dans le schéma, et le chemin gNMI, qui est ce que le modèle doit recopier.
+nœud dans le schéma et garde tous ses préfixes, et le chemin gNMI, qui est ce
+que le modèle doit recopier.
 
-Un préfixe de module apparaissant **au milieu** d'un chemin (cas OpenConfig,
-`…/state/openconfig-platform-transceiver:transceiver`) est conservé tel quel :
-il fait partie du chemin réel et le retirer casserait la requête.
+Le cas qui tranche la règle 1 est le préfixe **en milieu de chemin**, produit
+par une augmentation OpenConfig :
+`…/interface[name]/state/openconfig-platform-transceiver:transceiver`. Le
+chemin gNMI conventionnel — celui qu'émettent `gnmic` et les collecteurs
+netlive existants — ne porte aucun préfixe : la règle les retire donc tous.
+Rien n'est perdu, puisque le xpath canonique et le champ `module` restent dans
+l'index ; un consommateur qui aurait besoin de la forme qualifiée peut la
+reconstruire.
+
+C'est une décision d'implémentation à **confirmer sur du vrai matériel**
+(critère G2) : c'est le seul point de la normalisation qu'un raisonnement ne
+suffit pas à valider.
 
 ## 6. Les deux outils MCP
 

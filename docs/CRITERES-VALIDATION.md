@@ -48,8 +48,8 @@ change de nature.
 
 | # | Critère | Niveau | Vérification |
 |---|---|---|---|
-| C1 | Le préfixe de module du **premier** segment est retiré (`/nokia-state:state/…` ⟶ `/state/…`) | MAJEUR | Tests unitaires |
-| C2 | Un préfixe de module **en milieu de chemin** est **conservé** (cas OpenConfig) | MAJEUR | Test dédié sur `…/state/openconfig-platform-transceiver:transceiver` |
+| C1 | Le préfixe de module est retiré de **chaque** segment (`/nokia-state:state/…` ⟶ `/state/…`) | MAJEUR | Tests unitaires |
+| C2 | Un préfixe **en milieu de chemin** est retiré du chemin gNMI mais **conservé dans le xpath canonique** — rien n'est perdu | MAJEUR | Test dédié sur `…/state/openconfig-platform-transceiver:transceiver`, **plus** confirmation sur matériel réel (G2) |
 | C3 | Les clés de liste sont marquées comme attendant une valeur (`[router-name]` ⟶ `[router-name=?]`) | MAJEUR | Tests unitaires |
 | C4 | Une liste à clés multiples conserve **toutes** ses clés | MAJEUR | Test sur `[ip-address][mac-address][pppoe-session-id]` |
 | C5 | Le xpath canonique est conservé intact à côté du chemin gNMI | MAJEUR | Contrôle de schéma |

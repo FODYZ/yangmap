@@ -1,0 +1,118 @@
+# Jeu d'or — le classement est défini par ce qu'il doit réussir.
+#
+# Chaque entrée : une question telle qu'un ingénieur la pose, et le motif du
+# chemin attendu. La métrique est binaire : le chemin attendu figure-t-il dans
+# les CINQ premiers résultats ?
+#
+# Règle de composition (cahier E6) : tout motif ici doit correspondre à au
+# moins un chemin réellement présent dans l'index. Un motif sans correspondance
+# testerait la couverture du vendeur, pas le classement — c'est un autre sujet.
+#
+# Les questions sont en français et les descriptions des vendeurs en anglais :
+# c'est délibéré, c'est la situation réelle.
+
+- question: etat des transceivers SFP
+  plateforme: nokia_sros
+  attendu: '^/state/port\[[^\]]*\]/transceiver/'
+  pourquoi: le sous-arbre transceiver du port, pas les compteurs DWDM cohérents
+
+- question: table de routage
+  plateforme: nokia_sros
+  attendu: '^/state/router\[[^\]]*\]/route-table/unicast/ipv4/'
+  pourquoi: l'unicast IPv4 est le cas courant ; ni multicast ni unreachable
+
+- question: routes actives et inactives
+  plateforme: nokia_sros
+  # La question ne nomme aucune famille d'adressage : unicast comme multicast
+  # y repondent legitimement. Exiger unicast serait tester une intention que la
+  # question ne porte pas.
+  attendu: 'route-table/(unicast|multicast)/ipv[46]/statistics/.*/(active|available)-routes$'
+  pourquoi: available-routes distingue explicitement FIB active et RIB inactive
+
+- question: voisins BGP et etat des sessions
+  plateforme: nokia_sros
+  attendu: '^/state/router\[[^\]]*\]/bgp/neighbor\['
+  pourquoi: la liste des voisins du contexte de routage
+
+- question: adjacences ISIS
+  plateforme: nokia_sros
+  # Verifie contre l'index 24.3.3 : le noeud `adjacency` existe bien sous
+  # `interface[]`. Le commentaire de netlive qui affirmait le contraire datait
+  # d'une introspection plus ancienne — l'index a tranche.
+  attendu: '/isis\[[^\]]*\]/interface\[[^\]]*\]/adjacency'
+  pourquoi: les adjacences sont listees sous l'interface ISIS
+
+- question: statistiques PPPoE des sessions abonnes
+  plateforme: nokia_sros
+  attendu: '/sap\[[^\]]*\]/pppoe/statistics/'
+  pourquoi: PADI PADR PADT et les rejets — la sequence du diagnostic PPPoE
+
+- question: temperature des optiques
+  plateforme: nokia_sros
+  attendu: '/transceiver/.*temperature'
+  pourquoi: la DDM du transceiver
+
+- question: sessions LDP
+  plateforme: nokia_sros
+  attendu: '/ldp/session\['
+  pourquoi: l'etat des sessions LDP avec les pairs
+
+- question: utilisation processeur
+  plateforme: nokia_sros
+  attendu: '^/state/system/cpu\['
+  pourquoi: l'echantillonnage CPU du systeme
+
+- question: etat operationnel des interfaces
+  plateforme: nokia_sros
+  attendu: '^/state/router\[[^\]]*\]/interface\[|^/state/port\[[^\]]*\]/oper-state'
+  pourquoi: interface de routage ou etat du port physique
+
+- question: etat operationnel des interfaces
+  plateforme: cisco_iosxe
+  attendu: '^/interfaces/interface\['
+  pourquoi: le modele interfaces-oper
+
+- question: transceivers SFP
+  plateforme: cisco_iosxe
+  attendu: '^/transceiver-oper-data/'
+  pourquoi: Cisco publie un modele operationnel dedie au transceiver
+
+- question: voisins BGP
+  plateforme: cisco_iosxe
+  attendu: '^/bgp-state-data/'
+  pourquoi: l'etat BGP est dans son propre modele operationnel
+
+- question: utilisation processeur
+  plateforme: cisco_iosxe
+  attendu: '^/cpu-usage/'
+  pourquoi: le modele dedie a la charge CPU
+
+- question: voisins CDP
+  plateforme: cisco_iosxe
+  attendu: '^/cdp-neighbor-details'
+  pourquoi: la decouverte de voisinage Cisco
+
+- question: etat operationnel des interfaces
+  plateforme: arista_eos
+  attendu: '^/interfaces/interface\[[^\]]*\]/state/oper-status$'
+  pourquoi: la feuille openconfig qui porte l'etat
+
+- question: transceivers SFP
+  plateforme: arista_eos
+  attendu: '/components/component\[[^\]]*\]/transceiver'
+  pourquoi: openconfig place le transceiver sous les composants materiels
+
+- question: voisins BGP
+  plateforme: arista_eos
+  attendu: '/bgp/neighbors/neighbor\['
+  pourquoi: sous network-instance, protocol bgp
+
+- question: voisins LLDP
+  plateforme: arista_eos
+  attendu: '^/lldp/interfaces/interface\[[^\]]*\]/neighbors'
+  pourquoi: la decouverte de voisinage normalisee
+
+- question: compteurs erreurs sur les interfaces
+  plateforme: arista_eos
+  attendu: '/state/counters/(in|out)-errors'
+  pourquoi: les compteurs d'erreur d'interface

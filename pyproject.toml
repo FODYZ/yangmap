@@ -1,0 +1,34 @@
+[project]
+name = "yangmap"
+version = "0.1.0"
+description = "Serveur MCP : quel chemin YANG/gNMI donne quelle information, dans quelle version d'OS"
+requires-python = ">=3.11"
+dependencies = [
+    "mcp>=2.0",
+]
+
+[project.optional-dependencies]
+# pyang ne sert qu'a CONSTRUIRE un index. Le serveur n'en a pas besoin pour
+# tourner : c'est ce qui lui permet de n'avoir aucune dependance lourde a
+# l'execution (critere A5).
+build = ["pyang>=2.6"]
+dev = ["pytest>=8", "pyang>=2.6", "pyyaml>=6"]
+
+[project.scripts]
+yangmap = "yangmap.cli:main"
+yangmap-mcp = "yangmap.server:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["yangmap*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "strict"
+markers = [
+    "lab: tests exigeant le containerlab reel et les tunnels ouverts",
+    "build: tests exigeant pyang et un bundle YANG telecharge",
+]
