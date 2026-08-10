@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.pytest_cache/
+
+# Bundles YANG telecharges et index construits : regenerables d'une commande,
+# jamais versionnes (critere H2).
+bundles/
+index/
+*.db
