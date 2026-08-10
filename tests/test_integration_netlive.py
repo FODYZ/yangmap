@@ -4,11 +4,14 @@ Ces tests sont la raison d'être du projet : un chemin bien classé qui serait
 refusé par la policy, ou qui ne rendrait rien sur du vrai matériel, ne vaudrait
 rien. Ils exigent netlive installé et les tunnels ouverts.
 
-    NETLIVE_SSH_PASSWORD=admin pytest -m lab
+    NETLIVE_POLICIES=/chemin/vers/netlive/policies \
+    YANGMAP_LAB_USER=admin YANGMAP_LAB_PASSWORD=admin \
+    pytest -m lab
 """
 
 from __future__ import annotations
 
+import os
 import socket
 
 import pytest
@@ -29,7 +32,11 @@ CIBLES = {
     "nokia_sros": ("127.0.0.1", 57400, "24.3.R3"),
     "arista_eos": ("127.0.0.1", 6030, "4.32.11M"),
 }
-POLICIES = "/Users/fod/net-ai-copilot/policies"
+# Aucun chemin ni identifiant en dur : ce depot est public, et il doit servir
+# a d'autres labs que celui de son auteur.
+POLICIES = os.environ.get("NETLIVE_POLICIES", "../net-ai-copilot/policies")
+UTILISATEUR = os.environ.get("YANGMAP_LAB_USER", "admin")
+MOT_DE_PASSE = os.environ.get("YANGMAP_LAB_PASSWORD", "admin")
 
 
 def _joignable(hote: str, port: int) -> bool:
@@ -117,7 +124,7 @@ def test_un_chemin_yangmap_interroge_vraiment_l_arista():
     r = Carte().chercher("etat operationnel des interfaces", "arista_eos", version, 1)
     chemin = _valuer(r["resultats"][0]["chemin"], {"name": "Ethernet1"})
 
-    with pygnmi.gNMIclient(target=(hote, port), username="admin", password="admin",
+    with pygnmi.gNMIclient(target=(hote, port), username=UTILISATEUR, password=MOT_DE_PASSE,
                            insecure=True, skip_verify=True, timeout=30) as c:
         reponse = c.get(path=[chemin], encoding="json")
     valeurs = [u.get("val") for n in reponse.get("notification", [])
@@ -139,7 +146,7 @@ def test_le_prefixe_de_module_retire_est_accepte_par_le_materiel():
         pytest.skip("gNMI Arista injoignable")
 
     sans = "/interfaces/interface[name=Ethernet1]/state/transceiver"
-    with pygnmi.gNMIclient(target=(hote, port), username="admin", password="admin",
+    with pygnmi.gNMIclient(target=(hote, port), username=UTILISATEUR, password=MOT_DE_PASSE,
                            insecure=True, skip_verify=True, timeout=30) as c:
         reponse = c.get(path=[sans], encoding="json")
     assert reponse.get("notification"), "la forme sans préfixe a été refusée"
@@ -163,7 +170,7 @@ def test_le_chemin_route_table_referme_le_manque_du_handoff():
     assert any("route-table" in c for c in chemins), chemins
 
     conteneur = "/state/router[router-name=Base]/route-table/unicast/ipv4/statistics"
-    with pygnmi.gNMIclient(target=(hote, port), username="admin", password="admin",
+    with pygnmi.gNMIclient(target=(hote, port), username=UTILISATEUR, password=MOT_DE_PASSE,
                            insecure=True, skip_verify=True, timeout=40) as c:
         reponse = c.get(path=[conteneur], encoding="json")
 
@@ -184,7 +191,7 @@ def test_la_version_vient_de_capabilities_lue_sur_l_equipement():
     if not _joignable(hote, port):
         pytest.skip("gNMI Nokia injoignable")
 
-    with pygnmi.gNMIclient(target=(hote, port), username="admin", password="admin",
+    with pygnmi.gNMIclient(target=(hote, port), username=UTILISATEUR, password=MOT_DE_PASSE,
                            insecure=True, skip_verify=True, timeout=30) as c:
         capacites = c.capabilities()
 
