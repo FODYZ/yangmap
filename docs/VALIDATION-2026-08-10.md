@@ -10,8 +10,8 @@
 
 | | |
 |---|---|
-| ✅ Tenus | **41** |
-| ⚠️ Partiels | **2** |
+| ✅ Tenus | **42** |
+| ⚠️ Partiels | **1** |
 | ❌ Non tenus | **0** |
 | **Total** | **43** |
 
@@ -137,7 +137,7 @@ actives et inactives » ne nomme aucune famille d'adressage, donc exiger
 | G3 | Le manque `route_table` du HANDOFF est refermé | ✅ | `direct 3/3, host 0/2, isis 1/1` — **`host` porte 2 routes disponibles pour 0 active** |
 | G4 | Aucun chemin ne franchit le plancher | ✅ | BLOQUANT tenu, 5 sujets × 2 plateformes |
 | G5 | Version issue de `Capabilities` réelle | ✅ | `nokia-state` lu sur l'équipement, pilote le bundle |
-| G6 | Le modèle trouve ce qu'il ne trouvait pas | ⚠️ | **Résultat nuancé — voir ci-dessous** |
+| G6 | Le modèle trouve ce qu'il ne trouvait pas | ✅ | **Décisif sur un chemin obscur** : 0/2 en 12 appels sans, **2/2 en 3 appels avec**. Neutre à coûteux ailleurs — voir ci-dessous |
 | G7 | Contexte de base non gonflé | ✅ | < 1 200 caractères pour les 2 outils |
 
 ### Le défaut sérieux trouvé en confrontant les deux outils
@@ -175,10 +175,42 @@ concluait « je ne peux pas répondre ». Une fois informé de la *forme* attend
 il a retrouvé le chemin Nokia de lui-même — sans yangmap.
 
 C'est un résultat honnête et utile : **sur les chemins que le modèle connaît
-déjà, yangmap n'apporte rien.** Sa valeur se juge sur les chemins obscurs, ce
-que mesure la batterie de questions plus difficiles (transceiver DDM,
-prefix-SID ISIS, sessions LDP). G6 reste ⚠️ tant que cette batterie n'a pas
-conclu.
+déjà, yangmap n'apporte rien.**
+
+### La batterie qui tranche G6
+
+Trois questions de difficulté croissante, vérité terrain relevée par gNMI
+direct **avant** la campagne, six passes complètes :
+
+| Question | Config | Valeurs attendues trouvées | Appels | yangmap appelé | Durée |
+|---|---|---|---|---|---|
+| **Q1** transceiver du port 1/1/c1 | SANS | **0/2** | **12** (budget épuisé) | — | **476 s** |
+| | AVEC | **2/2** | **3** | oui | **38 s** |
+| **Q2** prefix-SID ISIS | SANS | 2/2 | 1 | — | 22 s |
+| | AVEC | 2/2 | 2 | **non** | 30 s |
+| **Q3** sessions LDP (réponse négative) | SANS | — correct | 6 | — | 123 s |
+| | AVEC | — correct | 9 | oui | 216 s |
+
+**Q1 est le cas où yangmap est décisif.** Sans lui, le modèle a inventé des
+chemins Nokia plausibles et inexistants — `/state/optical-module` (trois fois),
+`/state/interface`, `/state/transceiver`, `/components` — a épuisé ses douze
+appels, et a conclu qu'il n'avait aucune information. **Huit minutes et douze
+approbations humaines pour rien.** Avec yangmap : trois appels, trente-huit
+secondes, `qsfp` et `1302 nm`, exacts.
+
+**Q2 montre la limite.** `segment_routing` est un collecteur nommé du
+catalogue : le modèle l'a utilisé directement et n'a même pas appelé yangmap.
+Bon réflexe — mais l'appel supplémentaire à `netlive_instances` a coûté 8 s de
+plus.
+
+**Q3 montre le coût quand yangmap ne sert pas.** Réponse correcte des deux
+côtés, mais 9 appels et 216 s avec, contre 6 et 123 s sans : l'exploration
+supplémentaire est du gaspillage sur une question dont la réponse est négative.
+
+**Conclusion — G6 ✅, avec sa nuance :** yangmap est décisif là où aucun
+collecteur nommé n'existe et où le chemin est obscur. Il est neutre quand le
+catalogue couvre déjà le besoin, et **coûteux quand il ne sert pas**. Il
+complète le catalogue, il ne le remplace pas.
 
 ## H — Reproductibilité
 
@@ -194,8 +226,11 @@ conclu.
 
 | # | État | Décision |
 |---|---|---|
-| G6 | ⚠️ | La valeur de yangmap sur les chemins **obscurs** reste à établir. Sur les chemins courants, le modèle s'en passe |
 | E4 | ⚠️ | 100 % sur 21 cas est un bon signal, pas une preuve de généralité. Le jeu d'or grandira avec les échecs constatés — même logique que `netlive gaps` |
+
+**Piste ouverte par Q3** : yangmap coûte des appels quand il ne sert pas. La
+description de `yang_chercher` pourrait dire d'essayer d'abord les collecteurs
+nommés. À mesurer avant d'écrire — c'est la discipline de ce projet.
 
 ## Effets de bord sur netlive
 
