@@ -96,6 +96,16 @@ class Carte:
                 f"{res.version}. Ne pas inventer de chemin : reformuler, ou "
                 f"conclure que cette information n'est pas modélisée."
             ),
+            # Un chemin recopié sans substituer ses clés produit un résultat
+            # vide, que netlive traduisait en « fonction non configurée » —
+            # une conclusion fausse et assurée. Défaut trouvé sur le lab réel
+            # le 2026-08-10. Le rappel n'est émis que lorsqu'il sert.
+            "action_requise": (
+                "Remplacer chaque « =? » par une valeur réelle AVANT "
+                "d'interroger un équipement (ex. [router-name=Base]). Un "
+                "chemin laissé avec « =? » sera refusé."
+                if any(r.noeud.cles for r in trouves) else None
+            ),
         }
 
     def detail(

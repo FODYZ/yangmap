@@ -127,9 +127,10 @@ class Poids:
     """Chaque champ est un signal isolable, pour permettre l'ablation.
 
     Ces valeurs sortent d'un balayage contre le jeu d'or, pas d'une intuition.
-    Un cinquième signal — bonifier les feuilles au détriment des conteneurs —
-    a été essayé puis **retiré** : il ne changeait aucune entrée du jeu d'or,
-    ni en bien ni en mal (cahier E10).
+    DEUX signaux supplémentaires ont été essayés puis **retirés**, faute
+    d'effet mesurable (cahier E10) : bonifier les feuilles au détriment des
+    conteneurs, et la couverture des termes de la question. Ni l'un ni
+    l'autre ne déplaçait une seule entrée du jeu d'or, à aucun poids.
     """
 
     bm25_segments: float = 10.0

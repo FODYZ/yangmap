@@ -116,3 +116,11 @@
   plateforme: arista_eos
   attendu: '/state/counters/(in|out)-errors'
   pourquoi: les compteurs d'erreur d'interface
+
+# Ajoutee apres confrontation au vrai sros-lab-01 : la question ambigue
+# « routes actives et inactives » laisse legitimement passer rib-api devant,
+# mais des que l'ingenieur nomme la table de routage, c'est elle qu'il veut.
+- question: nombre de routes actives et inactives dans la table de routage
+  plateforme: nokia_sros
+  attendu: 'route-table/(unicast|multicast)/ipv[46]/statistics/.*/(active|available)-routes$'
+  pourquoi: verifie sur materiel reel — host affiche 2 disponibles pour 0 active

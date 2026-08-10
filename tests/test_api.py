@@ -92,3 +92,18 @@ def test_une_erreur_est_rendue_au_modele_comme_un_fait():
 def test_les_versions_disponibles_sont_listees(racine_carte):
     assert Carte(racine_carte).versions("nokia_sros") == ["24.3.3"]
     assert Carte(racine_carte).plateformes() == {"nokia_sros": ["24.3.3"]}
+
+
+def test_un_resultat_a_cles_porte_le_rappel_de_substitution(racine_carte):
+    """Defaut trouve sur le lab reel : un chemin recopie avec « =? » rendait
+    `not_configured`, que le modele lit comme « fonction non activee »."""
+    r = Carte(racine_carte).chercher("voisins BGP", "nokia_sros")
+    assert any(x["cles"] for x in r["resultats"])
+    assert r["action_requise"] is not None
+    assert "=?" in r["action_requise"]
+
+
+def test_sans_cle_aucun_rappel_inutile_n_est_emis(racine_carte):
+    """Le rappel ne doit pas devenir du bruit permanent."""
+    r = Carte(racine_carte).chercher("zorglub", "nokia_sros")
+    assert r["action_requise"] is None
