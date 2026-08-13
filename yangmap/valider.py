@@ -185,9 +185,18 @@ def valider(conn: sqlite3.Connection, chemin: str) -> Verdict:
         )
 
     assert noeud is not None
+    # Trois états, et deux seulement sont des fautes :
+    #
+    #   `[ip-address=10.0.0.9]` — borné, c'est ce qu'on veut ;
+    #   `[ip-address=?]` / `[ip-address=]` — un GABARIT recopié tel quel, que
+    #       l'équipement traduit en réponse vide : c'est la faute ;
+    #   clé absente du chemin — en gNMI, cela vaut « toutes les instances ».
+    #       C'est licite, et netlive l'autorise déjà. Le compter comme une
+    #       faute condamnerait des collecteurs qui fonctionnent — faux positif
+    #       relevé en passant le catalogue entier au crible.
     manquantes = tuple(
         cle for cle in noeud.cles
-        if valeurs.get(cle, "?").strip() in _NON_RENSEIGNEE
+        if cle in valeurs and valeurs[cle].strip() in _NON_RENSEIGNEE
     )
     if manquantes:
         return Verdict(
@@ -206,7 +215,12 @@ def valider(conn: sqlite3.Connection, chemin: str) -> Verdict:
     # d'instances inconnu — pas seulement sur le dernier segment :
     # `/router[router-name=*]/interface[interface-name=eth0]` est tout aussi
     # non borné que l'inverse.
-    jokers = "*" in valeurs.values()
+    # Une clé jokerisée, ou simplement absente, laisse le nombre d'instances
+    # inconnu : `/…/neighbor` sans crochets rend TOUS les voisins, exactement
+    # comme `[ip-address=*]`.
+    jokers = "*" in valeurs.values() or any(
+        cle not in valeurs for cle in noeud.cles
+    )
 
     octets = int(descendants * OCTETS_PAR_DESCENDANT)
     seuil = SEUIL_LISTE if jokers else SEUIL_UNIQUE

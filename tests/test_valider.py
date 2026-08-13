@@ -70,12 +70,30 @@ def test_une_cle_non_renseignee_est_refusee_avant_tout_contact(conn):
     C'est le défaut grave trouvé sur le lab le 2026-08-10 : une clé oubliée
     devenait « cette fonction n'est pas activée », faux et assuré.
     """
-    v = valider(conn, "/state/router[router-name=Base]/bgp/neighbor")
+    v = valider(conn, "/state/router[router-name=Base]/bgp/neighbor[ip-address=?]")
 
     assert v.verdict == "cle_manquante"
     assert not v.interrogeable
     assert "ip-address" in v.cles_manquantes
     assert "vide" in v.motif.lower()
+
+
+def test_une_cle_absente_du_chemin_vaut_toutes_les_instances(conn):
+    """Contre-épreuve, et faux positif corrigé.
+
+    `[ip-address=?]` est un gabarit recopié tel quel, que l'équipement
+    traduit en réponse vide. Une clé simplement ABSENTE est autre chose : en
+    gNMI elle vaut « toutes les instances », netlive l'autorise déjà, et
+    plusieurs collecteurs en service en dépendent. Les confondre condamnait
+    des collecteurs qui fonctionnent — relevé en passant le catalogue entier
+    au crible, jamais en test unitaire.
+    """
+    v = valider(conn, "/state/router[router-name=Base]/bgp/neighbor")
+
+    assert v.verdict != "cle_manquante"
+    assert v.interrogeable
+    # Non borné pour autant : c'est un avertissement de volume, pas un refus.
+    assert v.instances_inconnues
 
 
 def test_un_chemin_complet_sur_une_feuille_est_sur(conn):
