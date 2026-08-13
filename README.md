@@ -71,20 +71,73 @@ régénèrent d'une commande.
 yangmap-mcp
 ```
 
-Deux outils, et pas un de plus :
+Trois outils, et pas un de plus :
 
 | Outil | Rend |
 |---|---|
-| `yang_chercher(sujet, plateforme, version, limite)` | Chemins classés, avec type et description du vendeur |
+| `yang_chercher(sujet, plateforme, version, limite, arbre)` | Chemins classés, avec type et description du vendeur |
 | `yang_detail(chemin, plateforme, version)` | Le nœud, ses clés à fournir, ses **enfants immédiats** |
+| `yang_valider(chemin, plateforme, version)` | Ce chemin part-il, et que va-t-il rendre — **avant** tout contact |
 
-Le second permet au modèle de descendre dans l'arbre sans deviner.
+Le second permet au modèle de descendre dans l'arbre sans deviner. Le
+troisième répond à la question d'après.
+
+### `yang_valider` — les trois échecs qui se ressemblent
+
+Un chemin qui ne marche pas revient de trois façons, et une fois revenues
+elles sont **indiscernables** :
+
+| Ce qui s'est passé | Ce que le modèle reçoit | Ce qu'il en conclut |
+|---|---|---|
+| le chemin n'existe pas | une réponse vide | « la fonction n'est pas activée » |
+| une clé est restée en gabarit | une réponse vide | « la fonction n'est pas activée » |
+| le sous-arbre est énorme | une réponse **tronquée** | il conclut sur des données amputées |
+
+Les deux premières sont des faits **faux** énoncés avec assurance ; la
+troisième est pire, parce qu'invisible. `yang_valider` les distingue hors
+ligne, avant tout contact, et rend un motif au lieu d'un vide.
+
+```
+$ yangmap valider '/configure/router[router-name=Base]/bgp/group[group-name=transit]/export-policy' nokia_sros
+[KO] inexistant
+     segment inconnu : 'export-policy' sous /configure/router[]/bgp/group[].
+     Enfants possibles : export, ebgp-default-reject-policy, import.
+
+$ yangmap valider '/state/router[router-name=Base]/interface[interface-name=*]' nokia_sros
+[!!] volumineux
+     518 nœuds sous ce chemin, soit ~3470 caractères et par instance.
+```
+
+Le seuil de volume est **calibré, pas choisi** : le collecteur `interfaces` de
+netlive visait ce conteneur et rendait 17 583 caractères pour 5 interfaces,
+contre 573 une fois restreint aux feuilles utiles. D'où ~6,7 caractères par
+descendant et par instance — l'estimateur retombe à 1 % près sur la mesure.
+
+## Les deux arbres
+
+`arbre="etat"` (défaut) est l'état opérationnel, ce qu'un Get de diagnostic
+interroge. `arbre="conf"` est l'arbre de **configuration**.
+
+Il manquait, et le manque a coûté cher : sur `netlab`, quatre recherches
+successives pour `bgp group export-policy` n'ont **rien** rendu — non pas
+parce que le chemin manque au modèle, mais parce qu'aucun `/configure` n'était
+indexé. Avec `arbre="conf"`, le bon chemin arrive **premier** :
+
+```
+$ yangmap chercher "bgp group export policy" nokia_sros --arbre conf
+  [  33.44] /configure/router[router-name=?]/bgp/group[group-name=?]/export/policy
+            leaf-list/union — BGP export policy name
+```
+
+Les deux arbres ne se mélangent jamais dans un même classement : chaque nœud
+d'état a un jumeau de configuration qui le concurrencerait sur les mêmes mots.
+Mesuré : le jeu d'or Nokia reste à **11/11** après le doublement de l'index.
 
 ## Plateformes
 
 | Plateforme | Source YANG | Modèles indexés | Chemins | Descriptions |
 |---|---|---|---|---|
-| `nokia_sros` | [nokia/7x50_YangModels](https://github.com/nokia/7x50_YangModels), tag par révision | `nokia-state` | 50 772 | 98 % |
+| `nokia_sros` | [nokia/7x50_YangModels](https://github.com/nokia/7x50_YangModels), tag par révision | `nokia-state` + `nokia-conf` | 115 557 | 98 % |
 | `cisco_iosxe` | [YangModels/yang](https://github.com/YangModels/yang), `vendor/cisco/xe` | `*-oper.yang` | 12 123 | 97 % |
 | `arista_eos` | [aristanetworks/yang](https://github.com/aristanetworks/yang) | OpenConfig | 9 924 | 100 % |
 

@@ -20,10 +20,14 @@ async def _outils(serveur):
 
 
 @pytest.mark.asyncio
-async def test_le_serveur_expose_exactement_deux_outils(serveur):
-    """F1."""
+async def test_le_serveur_expose_exactement_trois_outils(serveur):
+    """F1. Le troisième, `yang_valider`, est arrivé le 2026-08-13.
+
+    Il ne rend toujours aucune donnée d'exploitation et ne contacte rien :
+    c'est de la lecture d'index, comme les deux autres.
+    """
     noms = set(await _outils(serveur))
-    assert noms == {"yang_chercher", "yang_detail"}, noms
+    assert noms == {"yang_chercher", "yang_detail", "yang_valider"}, noms
 
 
 @pytest.mark.asyncio

@@ -16,7 +16,7 @@ import re
 import sqlite3
 from dataclasses import dataclass, replace
 
-from yangmap.index import Noeud, _vers_noeud
+from yangmap.index import Noeud, _vers_noeud, porte_l_arbre
 
 # ---------------------------------------------------------------------------
 # Préparation de la requête
@@ -180,30 +180,50 @@ def _bonus_segment_exact(noeud: Noeud, mots: list[str]) -> float:
     return float(sum(1 for m in mots if any(_correspond(m, s) for s in segments)))
 
 
+ARBRES = ("etat", "conf", "tout")
+
+
 def chercher(
     conn: sqlite3.Connection,
     sujet: str,
     limite: int = 10,
     poids: Poids = DEFAUT,
+    arbre: str = "etat",
 ) -> list[Resultat]:
-    """Rend les nœuds les plus pertinents, du meilleur au moins bon."""
+    """Rend les nœuds les plus pertinents, du meilleur au moins bon.
+
+    `arbre` choisit où chercher — `etat` par défaut, parce que c'est ce qu'un
+    Get gNMI de diagnostic interroge. Mélanger les deux dégraderait le
+    classement sans rien apporter : l'arbre de configuration Nokia est aussi
+    gros que celui d'état, et chaque nœud d'état y a un jumeau qui le
+    concurrencerait sur les mêmes mots.
+    """
+    if arbre not in ARBRES:
+        raise ValueError(f"arbre inconnu : {arbre!r} (connus : {', '.join(ARBRES)})")
+
     mots = termes(sujet)
     if not mots:
         return []
+
+    # Un index construit avant que la distinction existe ne porte que de
+    # l'état : filtrer dessus serait un refus arbitraire.
+    filtre, parametres = "", []
+    if arbre != "tout" and porte_l_arbre(conn):
+        filtre, parametres = "AND n.arbre = ?", [arbre]
 
     # bm25() rend une valeur d'autant plus négative que la correspondance est
     # bonne ; on l'inverse pour additionner des signaux qui vont tous dans le
     # même sens.
     lignes = conn.execute(
-        """
+        f"""
         SELECT n.*, bm25(recherche, ?, ?) AS score_fts
         FROM recherche
         JOIN noeuds n ON n.id = recherche.rowid
-        WHERE recherche MATCH ?
+        WHERE recherche MATCH ? {filtre}
         ORDER BY score_fts
         LIMIT 400
         """,
-        (poids.bm25_segments, poids.bm25_description, requete_fts(mots)),
+        (poids.bm25_segments, poids.bm25_description, requete_fts(mots), *parametres),
     ).fetchall()
 
     resultats: list[Resultat] = []

@@ -27,8 +27,18 @@ INSTRUCTIONS = (
     " aucune donnée d'exploitation : uniquement la carte du modèle YANG."
     " Méthode : `yang_chercher` avec le sujet en langage naturel pour obtenir"
     " des chemins classés, puis `yang_detail` pour descendre dans l'arbre."
+    " Avant d'envoyer un chemin construit ou modifié à la main, passe-le à"
+    " `yang_valider` : il dit s'il existe, si ses clés sont renseignées et ce"
+    " qu'il va peser, sans contacter personne — un aller-retour de moins, et"
+    " un motif au lieu d'une réponse vide."
     " N'INVENTE JAMAIS de chemin : si `yang_chercher` ne rend rien, c'est que"
     " l'information n'est pas modélisée — dis-le plutôt que de deviner."
+    " Deux arbres coexistent, et une recherche ne porte que sur un seul :"
+    " `arbre=\"etat\"` (défaut) est l'état opérationnel, ce qu'un Get de"
+    " diagnostic interroge ; `arbre=\"conf\"` est l'arbre de CONFIGURATION, à"
+    " utiliser pour « comment est-ce configuré » — quelle policy est appliquée"
+    " à un groupe BGP, par exemple. Essaie l'autre arbre avant de conclure"
+    " qu'une information n'est pas modélisée."
     " Le champ `bundle_servi` dit sur quelle version la réponse porte ;"
     " si `ecart` vaut autre chose que `exact`, relaie l'avertissement."
 )
@@ -43,6 +53,10 @@ _VERSION = (
     " (ex. 24.3.R3). Facultative — sans elle, la version la plus récente"
     " installée est servie, et l'approximation est déclarée."
 )
+# Le détail des deux arbres vit dans INSTRUCTIONS, lu une fois : le répéter
+# dans chaque description coûterait le budget de contexte que le critère F5
+# protège (< 600 caractères par outil).
+_ARBRE = "`arbre` : `etat` (défaut) ou `conf` — cf. instructions."
 
 
 def _museler_les_bibliotheques() -> None:
@@ -60,10 +74,21 @@ def create_server(carte: Carte) -> MCPServer:
         plateforme: str,
         version: str | None = None,
         limite: int = 10,
+        arbre: str = "etat",
     ) -> dict[str, Any]:
         try:
-            return carte.chercher(sujet, plateforme, version, limite)
+            return carte.chercher(sujet, plateforme, version, limite, arbre=arbre)
         except Exception as e:  # noqa: BLE001 — rendu au modèle comme un fait
+            return en_erreur(e)
+
+    def yang_valider(
+        chemin: str,
+        plateforme: str,
+        version: str | None = None,
+    ) -> dict[str, Any]:
+        try:
+            return carte.valider(chemin, plateforme, version)
+        except Exception as e:  # noqa: BLE001
             return en_erreur(e)
 
     def yang_detail(
@@ -80,10 +105,23 @@ def create_server(carte: Carte) -> MCPServer:
         yang_chercher,
         name="yang_chercher",
         description=(
-            "Trouve les chemins gNMI qui portent une information donnée, classés"
-            f" du plus pertinent au moins pertinent. {_SUJET} {_PLATEFORME}"
-            f" {_VERSION} Rend pour chacun : le chemin prêt à interroger, le"
-            " genre de nœud, le type de donnée et la description du vendeur."
+            "Trouve les chemins gNMI qui portent une information donnée,"
+            f" classés par pertinence. {_SUJET} {_PLATEFORME} {_VERSION} Rend"
+            f" le chemin, le genre, le type et la description. {_ARBRE}"
+        ),
+    )
+    server.add_tool(
+        yang_valider,
+        name="yang_valider",
+        description=(
+            "Vérifie un chemin AVANT de l'envoyer à un équipement, sans en"
+            " contacter aucun. Distingue trois échecs qui se ressemblent une"
+            " fois revenus : chemin inexistant (il nomme le segment fautif et"
+            " les enfants possibles), clé restée en gabarit (réponse vide,"
+            " qu'on prendrait pour « non activé »), sous-arbre trop gros"
+            " (réponse tronquée, qui se conclut faux sans se voir)."
+            " À appeler sur tout chemin écrit à la main, et après tout"
+            f" résultat vide. {_PLATEFORME}"
         ),
     )
     server.add_tool(

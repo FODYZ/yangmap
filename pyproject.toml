@@ -12,7 +12,10 @@ dependencies = [
 # tourner : c'est ce qui lui permet de n'avoir aucune dependance lourde a
 # l'execution (critere A5).
 build = ["pyang>=2.6"]
-dev = ["pytest>=8", "pyang>=2.6", "pyyaml>=6"]
+# `pytest-asyncio` manquait : `asyncio_mode = "strict"` etait bien configure,
+# mais sans le greffon le marqueur `asyncio` restait inconnu et les 5 tests du
+# serveur MCP ne s'executaient PAS — ils ne protegeaient rien.
+dev = ["pytest>=8", "pytest-asyncio>=0.23", "pyang>=2.6", "pyyaml>=6"]
 
 [project.scripts]
 yangmap = "yangmap.cli:main"

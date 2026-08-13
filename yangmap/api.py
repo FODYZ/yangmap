@@ -15,6 +15,7 @@ from yangmap import index as idx
 from yangmap import search
 from yangmap.errors import IndexError_, ResolutionError, YangmapError
 from yangmap.resolve import Ecart, resoudre
+from yangmap.valider import valider as valider_chemin
 
 RACINE_DEFAUT = Path.home() / ".yangmap"
 PLATEFORMES = ("nokia_sros", "cisco_iosxe", "arista_eos")
@@ -65,15 +66,17 @@ class Carte:
         plateforme: str,
         version: str | None = None,
         limite: int = 10,
+        arbre: str = "etat",
     ) -> dict[str, Any]:
         conn, res = self._ouvrir(plateforme, version)
         try:
-            trouves = search.chercher(conn, sujet, limite)
+            trouves = search.chercher(conn, sujet, limite, arbre=arbre)
         finally:
             conn.close()
 
         return {
             "plateforme": plateforme,
+            "arbre": arbre,
             "bundle_servi": str(res.version),
             "version_demandee": res.demandee,
             "ecart": res.ecart.value,
@@ -93,8 +96,11 @@ class Carte:
             "message": (
                 None if trouves else
                 f"Aucun chemin ne correspond à {sujet!r} sur {plateforme} "
-                f"{res.version}. Ne pas inventer de chemin : reformuler, ou "
-                f"conclure que cette information n'est pas modélisée."
+                f"{res.version} dans l'arbre {arbre!r}. Ne pas inventer de "
+                f"chemin : reformuler, essayer l'autre arbre "
+                f"(`arbre=\"conf\"` porte la CONFIGURATION, `arbre=\"etat\"` "
+                f"l'état opérationnel), ou conclure que cette information "
+                f"n'est pas modélisée."
             ),
             # Un chemin recopié sans substituer ses clés produit un résultat
             # vide, que netlive traduisait en « fonction non configurée » —
@@ -149,6 +155,51 @@ class Carte:
                 }
                 for f in fils
             ],
+        }
+
+
+    def valider(
+        self,
+        chemin: str,
+        plateforme: str,
+        version: str | None = None,
+    ) -> dict[str, Any]:
+        """Ce chemin existe-t-il, est-il complet, et que va-t-il peser ?
+
+        La question que le modèle se pose juste avant d'appeler un équipement,
+        et à laquelle il ne pouvait répondre qu'en essayant. Un essai raté rend
+        une réponse vide, que netlive traduit en « fonction non activée » — un
+        fait faux, énoncé avec assurance. Ici, le motif est explicite et rien
+        n'a été contacté.
+        """
+        conn, res = self._ouvrir(plateforme, version)
+        try:
+            v = valider_chemin(conn, chemin)
+        finally:
+            conn.close()
+
+        return {
+            "plateforme": plateforme,
+            "bundle_servi": str(res.version),
+            "ecart": res.ecart.value,
+            "avertissement": res.message,
+            "chemin_demande": chemin,
+            "verdict": v.verdict,
+            "interrogeable": v.interrogeable,
+            "motif": v.motif,
+            "chemin_valide_jusqu_a": v.chemin_valide,
+            "suggestions": list(v.suggestions),
+            "descendants": v.descendants,
+            "octets_estimes": v.octets_estimes,
+            "instances_non_bornees": v.instances_inconnues,
+            "cles_manquantes": list(v.cles_manquantes),
+            "noeud": None if v.noeud is None else {
+                "chemin": v.noeud.chemin,
+                "genre": v.noeud.genre,
+                "type": v.noeud.type,
+                "description": v.noeud.description,
+                "arbre": v.noeud.arbre,
+            },
         }
 
 

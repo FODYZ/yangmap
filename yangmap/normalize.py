@@ -93,6 +93,19 @@ def analyser(xpath: str) -> Chemin:
     )
 
 
+def arbre_de(xpath: str) -> str:
+    """`conf` si le chemin appartient à l'arbre de configuration, sinon `etat`.
+
+    Nokia sépare les deux en deux modules (`nokia-conf`, `nokia-state`) ; c'est
+    le préfixe du premier segment qui tranche. Cisco n'expose que des modèles
+    `*-oper`, et OpenConfig porte `config`/`state` à l'intérieur d'un même
+    arbre : sur ces deux vendeurs tout reste `etat`, ce qui est exact — aucun
+    n'a d'arbre de configuration indexé aujourd'hui.
+    """
+    module = analyser(xpath).module or ""
+    return "conf" if module.endswith("-conf") else "etat"
+
+
 def mots_de(chemin: str) -> str:
     """Segments d'un chemin réduits en mots, pour l'indexation plein texte.
 
