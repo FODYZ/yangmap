@@ -1,18 +1,40 @@
 [project]
 name = "yangmap"
 version = "0.1.0"
-description = "Serveur MCP : quel chemin YANG/gNMI donne quelle information, dans quelle version d'OS"
+description = "MCP server: which YANG/gNMI path carries which information, in which OS version"
+readme = "README.md"
+license = { text = "MIT" }
 requires-python = ">=3.11"
+authors = [
+    { name = "Zakaria Fodil" },
+]
+keywords = ["yang", "gnmi", "netconf", "mcp", "network-automation", "network-engineering"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Telecommunications Industry",
+    "Intended Audience :: Information Technology",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: System :: Networking",
+    "Topic :: Software Development :: Documentation",
+]
 dependencies = [
     "mcp>=2.0",
 ]
 
+[project.urls]
+Homepage = "https://github.com/FODYZ/yangmap"
+Repository = "https://github.com/FODYZ/yangmap"
+Issues = "https://github.com/FODYZ/yangmap/issues"
+
 [project.optional-dependencies]
-# pyang ne sert qu'a CONSTRUIRE un index. Le serveur n'en a pas besoin pour
-# tourner : c'est ce qui lui permet de n'avoir aucune dependance lourde a
-# l'execution (critere A5).
+# pyang is only needed to BUILD an index. The server does not need it to
+# run: that is what lets it carry no heavy runtime dependency (criterion A5).
 build = ["pyang>=2.6"]
-dev = ["pytest>=8", "pyang>=2.6", "pyyaml>=6"]
+dev = ["pytest>=8", "pytest-asyncio>=0.24", "pyang>=2.6", "pyyaml>=6"]
 
 [project.scripts]
 yangmap = "yangmap.cli:main"
@@ -29,6 +51,6 @@ include = ["yangmap*"]
 testpaths = ["tests"]
 asyncio_mode = "strict"
 markers = [
-    "lab: tests exigeant le containerlab reel et les tunnels ouverts",
-    "build: tests exigeant pyang et un bundle YANG telecharge",
+    "lab: tests requiring the real containerlab and open tunnels",
+    "build: tests requiring pyang and a downloaded YANG bundle",
 ]

@@ -1,10 +1,10 @@
-"""Domaine G — usage réel par netlive, contre le containerlab.
+"""Domain G — real-world usage by netlive, against the containerlab.
 
-Ces tests sont la raison d'être du projet : un chemin bien classé qui serait
-refusé par la policy, ou qui ne rendrait rien sur du vrai matériel, ne vaudrait
-rien. Ils exigent netlive installé et les tunnels ouverts.
+These tests are the project's reason for existing: a well-ranked path that
+was refused by the policy, or that returned nothing on real hardware, would
+be worthless. They require netlive installed and the tunnels open.
 
-    NETLIVE_POLICIES=/chemin/vers/netlive/policies \
+    NETLIVE_POLICIES=/path/to/netlive/policies \
     YANGMAP_LAB_USER=admin YANGMAP_LAB_PASSWORD=admin \
     pytest -m lab
 """
@@ -26,14 +26,14 @@ pygnmi = pytest.importorskip("pygnmi.client", reason="pygnmi absent")
 from netlive.floor import check_floor  # noqa: E402
 from netlive.policy import PolicySet  # noqa: E402
 
-# Les deux équipements gNMI joignables : le Nokia du cœur et l'Arista, dont
-# gNMI a été activé pour cette campagne.
+# The two reachable gNMI devices: the core Nokia and the Arista, whose gNMI
+# was enabled for this campaign.
 CIBLES = {
     "nokia_sros": ("127.0.0.1", 57400, "24.3.R3"),
     "arista_eos": ("127.0.0.1", 6030, "4.32.11M"),
 }
-# Aucun chemin ni identifiant en dur : ce depot est public, et il doit servir
-# a d'autres labs que celui de son auteur.
+# No hardcoded path or credential: this repo is public, and must serve other
+# labs than its author's.
 POLICIES = os.environ.get("NETLIVE_POLICIES", "../net-ai-copilot/policies")
 UTILISATEUR = os.environ.get("YANGMAP_LAB_USER", "admin")
 MOT_DE_PASSE = os.environ.get("YANGMAP_LAB_PASSWORD", "admin")
@@ -63,7 +63,7 @@ def carte():
 
 
 def _valuer(chemin: str, valeurs: dict[str, str]) -> str:
-    """Remplace les `=?` par de vraies valeurs de clés."""
+    """Replaces the `=?` with real key values."""
     for cle, valeur in valeurs.items():
         chemin = chemin.replace(f"[{cle}=?]", f"[{cle}={valeur}]")
     return chemin
@@ -76,11 +76,11 @@ def _valuer(chemin: str, valeurs: dict[str, str]) -> str:
 def test_les_chemins_rendus_sont_acceptes_par_la_policy_netlive(
     carte, policies, plateforme
 ):
-    """G1 — BLOQUANT.
+    """G1 — BLOCKING.
 
-    Un chemin bien classé mais refusé par netlive serait inutilisable. La
-    policy netlive autorise les chemins gNMI sauf sous-arbre bloqué : encore
-    faut-il que la FORME produite par yangmap soit reconnue comme un chemin.
+    A well-ranked path refused by netlive would be unusable. netlive's
+    policy allows gNMI paths except for a blocked subtree: the FORM
+    produced by yangmap still has to be recognized as a path.
     """
     _, _, version = CIBLES[plateforme]
     policy = policies.for_platform(plateforme)
@@ -89,37 +89,37 @@ def test_les_chemins_rendus_sont_acceptes_par_la_policy_netlive(
     verifies = 0
     for sujet in sujets:
         for r in carte.chercher(sujet, plateforme, version, limite=5)["resultats"]:
-            # Les clés doivent être renseignées : un chemin porteur de `=?`
-            # n'est pas destiné à partir tel quel.
+            # Keys must be filled in: a path carrying `=?` isn't meant to
+            # be sent as-is.
             chemin = r["chemin"].replace("=?]", "=X]")
             verdict = policy.evaluate_request(chemin, "gnmi")
             assert verdict.decision.value == "allow", (
-                f"{plateforme} : {chemin} refusé — {verdict.reason}"
+                f"{plateforme}: {chemin} refused — {verdict.reason}"
             )
             verifies += 1
-    assert verifies > 10, "échantillon trop maigre pour conclure"
+    assert verifies > 10, "sample too thin to conclude anything"
 
 
 @pytest.mark.parametrize("plateforme", sorted(CIBLES))
 def test_aucun_chemin_rendu_ne_franchit_le_plancher(carte, plateforme):
-    """G4 — BLOQUANT.
+    """G4 — BLOCKING.
 
-    yangmap n'indexe que des modèles d'état. Aucun chemin rendu ne doit
-    ressembler à un verbe d'écriture : si c'était le cas, yangmap deviendrait
-    un moyen de suggérer à un modèle ce que le plancher lui interdit.
+    yangmap only indexes state models. No returned path should look like a
+    write verb: if it did, yangmap would become a way to suggest to a model
+    what the security floor forbids it.
     """
     _, _, version = CIBLES[plateforme]
     for sujet in ("configure", "commit", "reload", "transceiver", "route"):
         for r in carte.chercher(sujet, plateforme, version, limite=10)["resultats"]:
             resultat = check_floor(r["chemin"])
-            assert resultat.allowed, f"{r['chemin']} heurte le plancher : {resultat.reason}"
+            assert resultat.allowed, f"{r['chemin']} crosses the floor: {resultat.reason}"
 
 
 def test_un_chemin_yangmap_interroge_vraiment_l_arista():
-    """G2 — BLOQUANT. Le chemin classé premier doit rendre une donnée."""
+    """G2 — BLOCKING. The top-ranked path must return data."""
     hote, port, version = CIBLES["arista_eos"]
     if not _joignable(hote, port):
-        pytest.skip("gNMI Arista injoignable — tunnel 6030 fermé")
+        pytest.skip("Arista gNMI unreachable — tunnel 6030 closed")
 
     r = Carte().chercher("etat operationnel des interfaces", "arista_eos", version, 1)
     chemin = _valuer(r["resultats"][0]["chemin"], {"name": "Ethernet1"})
@@ -129,38 +129,37 @@ def test_un_chemin_yangmap_interroge_vraiment_l_arista():
         reponse = c.get(path=[chemin], encoding="json")
     valeurs = [u.get("val") for n in reponse.get("notification", [])
                for u in n.get("update", [])]
-    assert valeurs, f"{chemin} n'a rien rendu"
+    assert valeurs, f"{chemin} returned nothing"
     assert valeurs[0] in ("UP", "DOWN"), valeurs
 
 
 def test_le_prefixe_de_module_retire_est_accepte_par_le_materiel():
-    """C2 confirmé sur matériel — la forme sans préfixe est la bonne.
+    """C2 confirmed on hardware — the prefix-free form is the right one.
 
-    Le xpath pyang porte `openconfig-platform-transceiver:transceiver` en
-    milieu de chemin. yangmap le retire ; ce test prouve que la forme retirée
-    est acceptée par un vrai équipement, ce qu'aucun raisonnement ne pouvait
-    établir.
+    The pyang xpath carries `openconfig-platform-transceiver:transceiver`
+    mid-path. yangmap strips it; this test proves the stripped form is
+    accepted by real equipment, something no reasoning alone could settle.
     """
     hote, port, _ = CIBLES["arista_eos"]
     if not _joignable(hote, port):
-        pytest.skip("gNMI Arista injoignable")
+        pytest.skip("Arista gNMI unreachable")
 
     sans = "/interfaces/interface[name=Ethernet1]/state/transceiver"
     with pygnmi.gNMIclient(target=(hote, port), username=UTILISATEUR, password=MOT_DE_PASSE,
                            insecure=True, skip_verify=True, timeout=30) as c:
         reponse = c.get(path=[sans], encoding="json")
-    assert reponse.get("notification"), "la forme sans préfixe a été refusée"
+    assert reponse.get("notification"), "the prefix-free form was refused"
 
 
 def test_le_chemin_route_table_referme_le_manque_du_handoff():
-    """G3 — le manque documenté au HANDOFF netlive du 2026-08-10.
+    """G3 — the gap documented in netlive's HANDOFF of 2026-08-10.
 
-    « Aucun collecteur nommé pour la table de routage » : yangmap donne le
-    chemin, et il rend des compteurs réels sur le lab.
+    "No named collector for the routing table": yangmap gives the path,
+    and it returns real counters on the lab.
     """
     hote, port, version = CIBLES["nokia_sros"]
     if not _joignable(hote, port):
-        pytest.skip("gNMI Nokia injoignable")
+        pytest.skip("Nokia gNMI unreachable")
 
     r = Carte().chercher(
         "nombre de routes actives et inactives dans la table de routage",
@@ -176,20 +175,20 @@ def test_le_chemin_route_table_referme_le_manque_du_handoff():
 
     valeurs = [u.get("val") for n in reponse.get("notification", [])
                for u in n.get("update", [])]
-    assert valeurs, "aucune statistique de routage rendue"
+    assert valeurs, "no routing statistic returned"
     protocoles = valeurs[0]
     porteurs = {
         k: v for k, v in protocoles.items()
         if isinstance(v, dict) and v.get("available-routes")
     }
-    assert porteurs, f"aucun protocole porteur de routes : {list(protocoles)[:8]}"
+    assert porteurs, f"no protocol carrying routes: {list(protocoles)[:8]}"
 
 
 def test_la_version_vient_de_capabilities_lue_sur_l_equipement():
-    """G5 — la boucle complète : l'équipement dit sa version, yangmap s'y règle."""
+    """G5 — the full loop: the equipment states its version, yangmap adapts to it."""
     hote, port, _ = CIBLES["nokia_sros"]
     if not _joignable(hote, port):
-        pytest.skip("gNMI Nokia injoignable")
+        pytest.skip("Nokia gNMI unreachable")
 
     with pygnmi.gNMIclient(target=(hote, port), username=UTILISATEUR, password=MOT_DE_PASSE,
                            insecure=True, skip_verify=True, timeout=30) as c:
@@ -198,14 +197,14 @@ def test_la_version_vient_de_capabilities_lue_sur_l_equipement():
     modeles = {m["name"]: m.get("version", "") for m in capacites.get("supported_models", [])}
     assert "nokia-state" in modeles, sorted(modeles)[:10]
 
-    # La version annoncée pilote le choix du bundle, sans intervention humaine.
+    # The announced version drives the bundle choice, with no human intervention.
     r = Carte().chercher("transceiver", "nokia_sros", modeles["nokia-state"] or "24.3.R3")
     assert r["resultats"]
     assert r["bundle_servi"]
 
 
 def test_les_descriptions_d_outils_pesent_moins_que_celles_de_netlive():
-    """G7 — l'ajout de yangmap ne doit pas gonfler le contexte de base."""
+    """G7 — adding yangmap must not inflate the base context."""
     from yangmap.api import Carte as _C
     from yangmap.server import create_server
 
@@ -213,6 +212,6 @@ def test_les_descriptions_d_outils_pesent_moins_que_celles_de_netlive():
     import asyncio
     outils = asyncio.run(server.list_tools())
     total = sum(len(o.description) for o in outils)
-    # netlive répète l'inventaire dans chacun de ses 11 outils ; yangmap doit
-    # rester très en dessous.
-    assert total < 1200, f"{total} caractères pour {len(outils)} outils"
+    # netlive repeats its inventory in each of its 11 tools; yangmap must
+    # stay well below that.
+    assert total < 1200, f"{total} characters for {len(outils)} tools"

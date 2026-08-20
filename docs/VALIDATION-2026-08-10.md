@@ -1,245 +1,246 @@
-# Déroulé du cahier de critères — 2026-08-10
+# Validation criteria run-through — 2026-08-10
 
-> Référentiel : [`CRITERES-VALIDATION.md`](CRITERES-VALIDATION.md)
-> Matériel : containerlab réel (`sros-lab-01` SR OS 24.3.R3 en gNMI,
-> `ceos-lab-01` EOS 4.32.11M en gNMI activé pour cette campagne,
+> Reference: [`CRITERES-VALIDATION.md`](CRITERES-VALIDATION.md)
+> Hardware: real containerlab (`sros-lab-01` SR OS 24.3.R3 over gNMI,
+> `ceos-lab-01` EOS 4.32.11M with gNMI enabled for this campaign,
 > `csr-lab-01` IOS-XE 17.3.4a).
-> Modèle : Qwen3.6 27B Q5 en local, via l'Ollama du homelab.
+> Model: Qwen3.6 27B Q5 running locally via the homelab's Ollama.
 
 ## Verdict
 
 | | |
 |---|---|
-| ✅ Tenus | **42** |
-| ⚠️ Partiels | **1** |
-| ❌ Non tenus | **0** |
+| ✅ Passed | **42** |
+| ⚠️ Partial | **1** |
+| ❌ Failed | **0** |
 | **Total** | **43** |
 
 | Suite | Tests |
 |---|---|
-| yangmap, hors lab | **91** ✅ |
-| yangmap, index réels (`build`) | **3** ✅ |
-| yangmap, containerlab réel (`lab`) | **9** ✅ |
-| netlive, hors lab | **359** ✅ (dont **15 ajoutés** par cette campagne) |
-| netlive, containerlab réel | **13** ✅ |
+| yangmap, outside the lab | **91** ✅ |
+| yangmap, real indexes (`build`) | **3** ✅ |
+| yangmap, real containerlab (`lab`) | **9** ✅ |
+| netlive, outside the lab | **359** ✅ (including **15 added** by this campaign) |
+| netlive, real containerlab | **13** ✅ |
 
-## A — La frontière fondatrice
+## A — The founding boundary
 
-| # | Critère | État | Preuve |
+| # | Criterion | State | Evidence |
 |---|---|---|---|
-| A1 | Aucun socket réseau à l'exécution | ✅ | Test AST sur les 9 modules. **Confirmé par accident** : le venv yangmap n'a pas `pygnmi`, les tests lab ont dû tourner depuis celui de netlive |
-| A2 | Aucune bibliothèque de secrets | ✅ | Test AST, 9 modules |
-| A3 | Aucun inventaire lu | ✅ | Revue + test textuel |
-| A4 | Le téléchargement n'est pas atteignable depuis un outil | ✅ | `server.py` et `api.py` n'importent ni `bundles` ni `indexer`. **Test mis en échec volontairement** — voir ci-dessous |
-| A5 | Démarre sans réseau | ✅ | pyang absent des dépendances d'exécution ; suite hors ligne verte |
+| A1 | No network socket at runtime | ✅ | AST test on the 9 modules. **Confirmed by accident**: the yangmap venv doesn't have `pygnmi`, so the lab tests had to run from netlive's venv |
+| A2 | No secrets library | ✅ | AST test, 9 modules |
+| A3 | No inventory read | ✅ | Review + text test |
+| A4 | Downloading isn't reachable from a tool | ✅ | `server.py` and `api.py` import neither `bundles` nor `indexer`. **Test deliberately broken** — see below |
+| A5 | Starts with no network | ✅ | pyang absent from runtime dependencies; offline suite green |
 
-**A4 ne protégeait rien avant d'être mis en échec.** `from yangmap import bundles`
-passait : l'extracteur d'AST relevait le *module* (`yangmap`) et jamais le *nom
-importé* (`bundles`). Corrigé, puis vérifié rouge avant d'être vérifié vert.
+**A4 protected nothing before being broken on purpose.** `from yangmap import
+bundles` passed: the AST extractor picked up the *module* (`yangmap`) but
+never the *imported name* (`bundles`). Fixed, then verified red before being
+verified green.
 
-## B — Ingestion et index
+## B — Ingestion and indexing
 
-| # | Critère | État | Mesure |
+| # | Criterion | State | Measurement |
 |---|---|---|---|
-| B1 | Nokia : 0 erreur, > 50 000 chemins | ✅ | **50 772 chemins**, 1/1 modèle, 5 s |
-| B2 | Cisco IOS-XE : 0 erreur | ✅ | **12 123 chemins**, 120/120 modèles |
-| B3 | Arista/OpenConfig : 0 erreur | ✅ | **9 924 chemins**, 89/89 modèles |
-| B4 | Schéma complet par entrée | ✅ | xpath, chemin gNMI, genre, type, description, module, clés, profondeur |
-| B5 | Construction idempotente | ✅ | Double construction : même compte, table FTS5 non dupliquée |
-| B6 | Un modèle cassé n'emporte pas les autres | ✅ | Injection d'un YANG invalide : le valide est indexé, l'échec rapporté |
-| B7 | Aucun CSV intermédiaire ne subsiste | ✅ | Contrôle du répertoire |
+| B1 | Nokia: 0 errors, > 50,000 paths | ✅ | **50,772 paths**, 1/1 model, 5 s |
+| B2 | Cisco IOS-XE: 0 errors | ✅ | **12,123 paths**, 120/120 models |
+| B3 | Arista/OpenConfig: 0 errors | ✅ | **9,924 paths**, 89/89 models |
+| B4 | Full schema per entry | ✅ | xpath, gNMI path, kind, type, description, module, keys, depth |
+| B5 | Idempotent build | ✅ | Double build: same count, FTS5 table not duplicated |
+| B6 | A broken model doesn't take down the others | ✅ | Injection of an invalid YANG file: the valid one is indexed, the failure reported |
+| B7 | No intermediate CSV survives | ✅ | Directory check |
 
-Couverture des descriptions mesurée sur les index réels : **98 % / 97 % / 100 %**.
+Description coverage measured on the real indexes: **98% / 97% / 100%**.
 
-## C — Normalisation des chemins
+## C — Path normalization
 
-| # | Critère | État | Note |
+| # | Criterion | State | Note |
 |---|---|---|---|
-| C1 | Préfixe de module retiré de chaque segment | ✅ | |
-| C2 | Préfixe en milieu de chemin | ✅ | **Tranché par le matériel**, pas par le raisonnement — voir ci-dessous |
-| C3 | Clés marquées `=?` | ✅ | |
-| C4 | Clés multiples toutes conservées | ✅ | Cas réel `[ip-address][mac-address][pppoe-session-id]` |
-| C5 | xpath canonique conservé | ✅ | |
-| C6 | Normalisation pure | ✅ | |
+| C1 | Module prefix stripped from every segment | ✅ | |
+| C2 | Mid-path prefix | ✅ | **Settled by hardware**, not by reasoning — see below |
+| C3 | Keys marked `=?` | ✅ | |
+| C4 | Multiple keys all kept | ✅ | Real case `[ip-address][mac-address][pppoe-session-id]` |
+| C5 | Canonical xpath kept | ✅ | |
+| C6 | Pure normalization | ✅ | |
 
-**C2 — la spec affirmait le contraire de ce que fait le code.** Elle disait le
-préfixe « conservé » ; l'implémentation le retire. Testé sur `ceos-lab-01` :
-les **deux formes sont acceptées** par le vrai équipement. Retirer est donc
-sûr, et la spec a été corrigée d'après la mesure.
+**C2 — the spec claimed the opposite of what the code does.** It said the
+prefix was "kept"; the implementation strips it. Tested on `ceos-lab-01`:
+**both forms are accepted** by the real equipment. Stripping is therefore
+safe, and the spec was corrected based on the measurement.
 
-## D — Résolution de version et mode dégradé
+## D — Version resolution and degraded mode
 
-| # | Critère | État | Mesure sur les vrais bundles |
+| # | Criterion | State | Measurement on real bundles |
 |---|---|---|---|
-| D1 | Version exacte servie | ✅ | Nokia 24.3.R3 → `24.3.3`, écart `exact` |
-| D2 | Même train, écart déclaré | ✅ | Cisco 17.3.**4a** → `17.3.1` |
-| D3 | Train absent, avertissement fort | ✅ | Testé unitairement |
-| D4 | Plateforme inconnue, aucun repli | ✅ | BLOQUANT tenu |
-| D5 | Message qui nomme la commande | ✅ | |
-| D6 | Aucun écart dissimulé | ✅ | Arista 4.32.**11M** → `4.32.2`, écart `meme_train` déclaré — **et le chemin marche quand même sur le vrai matériel** |
+| D1 | Exact version served | ✅ | Nokia 24.3.R3 → `24.3.3`, gap `exact` |
+| D2 | Same train, gap declared | ✅ | Cisco 17.3.**4a** → `17.3.1` |
+| D3 | Train absent, strong warning | ✅ | Tested unit-level |
+| D4 | Unknown platform, no fallback | ✅ | BLOCKING criterion held |
+| D5 | Message naming the command | ✅ | |
+| D6 | No hidden gap | ✅ | Arista 4.32.**11M** → `4.32.2`, gap `same_train` declared — **and the path works anyway on real hardware** |
 
-Le repli est bien le **cas normal sur deux vendeurs sur trois**, comme la
-reconnaissance l'annonçait.
+The fallback is indeed the **normal case on two vendors out of three**, as
+the reconnaissance had predicted.
 
-## E — Recherche et classement
+## E — Search and ranking
 
-| # | Critère | État | Mesure |
+| # | Criterion | State | Measurement |
 |---|---|---|---|
-| E1 | Recherche < 1 s | ✅ | **3 à 100 ms** sur 50 772 chemins |
-| E2 | Description **et** segments cherchés | ✅ | Testé dans les deux sens |
-| E3 | Terme absurde ⇒ rien, jamais d'approximation | ✅ | BLOQUANT tenu |
-| E4 | **≥ 80 % du jeu d'or dans le top 5** | ✅ | **100 % (21/21)** |
-| E5 | ≥ 15 entrées, 3 plateformes | ✅ | 21 entrées : 11 Nokia, 5 Cisco, 5 Arista |
-| E6 | Chemins attendus vérifiés présents | ✅ | Sondés dans l'index avant inscription |
-| E7 | Les 4 échecs de spec §3.4 corrigés | ✅ | Tous au jeu d'or |
-| E8 | Score rendu | ✅ | |
-| E9 | Limite respectée, plafonnée à 50 | ✅ | |
-| E10 | Tout signal sans effet est retiré | ✅ | **Deux signaux retirés** |
+| E1 | Search < 1 s | ✅ | **3 to 100 ms** on 50,772 paths |
+| E2 | Description **and** segments searched | ✅ | Tested both directions |
+| E3 | Nonsense term ⇒ nothing, never a guess | ✅ | BLOCKING criterion held |
+| E4 | **≥ 80% of golden set in the top 5** | ✅ | **100% (21/21)** |
+| E5 | ≥ 15 entries, 3 platforms | ✅ | 21 entries: 11 Nokia, 5 Cisco, 5 Arista |
+| E6 | Expected paths verified present | ✅ | Probed in the index before being added |
+| E7 | The 4 failures from spec §3.4 fixed | ✅ | All in the golden set |
+| E8 | Score returned | ✅ | |
+| E9 | Limit honored, capped at 50 | ✅ | |
+| E10 | Every signal with no effect is removed | ✅ | **Two signals removed** |
 
-**Progression du classement : 65 % → 95 % → 100 %.**
+**Ranking progression: 65% → 95% → 100%.**
 
-| Signal neutralisé | Taux | Delta | Verdict |
+| Signal neutralized | Rate | Delta | Verdict |
 |---|---|---|---|
-| BM25 descriptions | 76 % | −24 % | utile |
-| BM25 segments | 86 % | −14 % | utile |
-| Correspondance exacte de segment | 90 % | −10 % | utile |
-| Pénalité de profondeur | 95 % | −5 % | utile |
+| BM25 descriptions | 76% | −24% | useful |
+| BM25 segments | 86% | −14% | useful |
+| Exact segment match | 90% | −10% | useful |
+| Depth penalty | 95% | −5% | useful |
 
-**Deux signaux essayés puis retirés** faute d'effet mesurable à *aucun* poids :
-la bonification des feuilles, et la couverture des termes. E10 interdit de les
-garder « au cas où ».
+**Two signals tried and then dropped** for lack of measurable effect at *any*
+weight: boosting leaves, and term coverage. E10 forbids keeping them "just in
+case."
 
-**Deux entrées du jeu d'or ont été corrigées parce qu'elles encodaient une
-erreur de l'auteur**, pas un défaut du code : l'adjacence ISIS vit sous
-`interface[]/adjacency` (le code l'avait trouvée au rang 3, c'est le motif
-attendu qui était faux — repris d'un commentaire netlive périmé), et « routes
-actives et inactives » ne nomme aucune famille d'adressage, donc exiger
-`unicast` testait une intention absente de la question.
+**Two golden-set entries were fixed because they encoded an author error**,
+not a code defect: the ISIS adjacency lives under `interface[]/adjacency`
+(the code had found it at rank 3 — it was the expected pattern that was
+wrong, copied from a stale netlive comment), and "active and inactive routes"
+doesn't name any address family, so requiring `unicast` was testing an intent
+the question didn't carry.
 
-## F — Contrat MCP
+## F — MCP contract
 
-| # | Critère | État | Mesure |
+| # | Criterion | State | Measurement |
 |---|---|---|---|
-| F1 | Exactement deux outils | ✅ | `yang_chercher`, `yang_detail` |
-| F2 | Enfants **immédiats**, pas le sous-arbre | ✅ | |
-| F3 | Clés à fournir rendues | ✅ | |
-| F4 | Chemin inconnu ⇒ erreur claire | ✅ | Oriente vers `yang_chercher` |
-| F5 | Descriptions courtes | ✅ | **< 600 caractères** par outil |
-| F6 | stdio JSON-RPC non corrompu | ✅ | Vrai sous-processus, `initialize` complet |
-| F7 | JSON valide à `limite=50` | ✅ | |
+| F1 | Exactly two tools | ✅ | `yang_chercher`, `yang_detail` |
+| F2 | **Immediate** children, not the subtree | ✅ | |
+| F3 | Required keys returned | ✅ | |
+| F4 | Unknown path ⇒ clear error | ✅ | Points to `yang_chercher` |
+| F5 | Short descriptions | ✅ | **< 600 characters** per tool |
+| F6 | stdio JSON-RPC not corrupted | ✅ | Real subprocess, full `initialize` |
+| F7 | Valid JSON at `limite=50` | ✅ | |
 
-## G — Usage réel par netlive
+## G — Real-world usage by netlive
 
-| # | Critère | État | Preuve sur le lab |
+| # | Criterion | State | Evidence from the lab |
 |---|---|---|---|
-| G1 | Chemins acceptés par la policy netlive | ✅ | > 10 chemins par plateforme, tous `allow` |
-| G2 | Un chemin interroge vraiment l'équipement | ✅ | `/interfaces/interface[name=Ethernet1]/state/oper-status` → **`UP`** |
-| G3 | Le manque `route_table` du HANDOFF est refermé | ✅ | `direct 3/3, host 0/2, isis 1/1` — **`host` porte 2 routes disponibles pour 0 active** |
-| G4 | Aucun chemin ne franchit le plancher | ✅ | BLOQUANT tenu, 5 sujets × 2 plateformes |
-| G5 | Version issue de `Capabilities` réelle | ✅ | `nokia-state` lu sur l'équipement, pilote le bundle |
-| G6 | Le modèle trouve ce qu'il ne trouvait pas | ✅ | **Décisif sur un chemin obscur** : 0/2 en 12 appels sans, **2/2 en 3 appels avec**. Neutre à coûteux ailleurs — voir ci-dessous |
-| G7 | Contexte de base non gonflé | ✅ | < 1 200 caractères pour les 2 outils |
+| G1 | Paths accepted by netlive's policy | ✅ | > 10 paths per platform, all `allow` |
+| G2 | A path actually queries the equipment | ✅ | `/interfaces/interface[name=Ethernet1]/state/oper-status` → **`UP`** |
+| G3 | The `route_table` gap from the HANDOFF is closed | ✅ | `direct 3/3, host 0/2, isis 1/1` — **`host` carries 2 available routes for 0 active** |
+| G4 | No path crosses the floor | ✅ | BLOCKING criterion held, 5 subjects × 2 platforms |
+| G5 | Version from real `Capabilities` | ✅ | `nokia-state` read on the equipment, drives the bundle choice |
+| G6 | The model finds what it couldn't find before | ✅ | **Decisive on one obscure path**: 0/2 in 12 calls without, **2/2 in 3 calls with**. Neutral to costly elsewhere — see below |
+| G7 | Base context not inflated | ✅ | < 1,200 characters for the 2 tools |
 
-### Le défaut sérieux trouvé en confrontant les deux outils
+### The serious defect found by confronting the two tools
 
-Un chemin recopié avec sa clé en gabarit — `[router-name=?]` — était **accepté
-par la policy, envoyé à l'équipement**, qui répondait une valeur vide. Le noyau
-la traduisait en `not_configured`, c'est-à-dire, pour le modèle, « cette
-fonction n'est pas activée » — un statut que le prompt système lui ordonne de
-tenir pour un **FAIT**.
+A path copied back with its key still a template — `[router-name=?]` — was
+**accepted by the policy, sent to the equipment**, which answered with an
+empty value. The core translated that into `not_configured`, meaning, to the
+model, "this feature isn't enabled" — a status the system prompt orders it to
+treat as a **FACT**.
 
-**Une clé oubliée devenait une conclusion fausse et assurée.**
+**A forgotten key became a confidently wrong conclusion.**
 
-Corrigé des deux côtés :
+Fixed on both sides:
 
-| Côté | Correction |
+| Side | Fix |
 |---|---|
-| netlive | Une clé `=?` est refusée **sans que l'équipement soit contacté** — `denied` en 0 ms, vérifié sur `sros-lab-01`. Le motif dit comment corriger |
-| yangmap | `action_requise` émis dès qu'un résultat porte des clés |
+| netlive | A `=?` key is refused **without contacting the equipment** — `denied` in 0 ms, verified on `sros-lab-01`. The reason states how to fix it |
+| yangmap | `action_requise` is emitted as soon as a result carries keys |
 
-### G6 — ce que la campagne a réellement montré
+### G6 — what the campaign actually showed
 
-La question de référence est celle qui a échoué le 2026-08-10 : « combien de
-routes actives et inactives sur `sros-lab-01` ». Trois passes :
+The reference question is the one that failed on 2026-08-10: "how many active
+and inactive routes on `sros-lab-01`". Three passes:
 
-| Passe | SANS yangmap | AVEC yangmap |
+| Pass | WITHOUT yangmap | WITH yangmap |
 |---|---|---|
-| 1 — état initial | échec : `denied` en boucle | échec : appelle yangmap, puis retombe en CLI |
-| 2 — après le garde-fou des clés | échec | échec |
-| 3 — après la description par transport | ✅ **chiffres corrects** | ✅ **chiffres corrects** |
+| 1 — initial state | failure: `denied` in a loop | failure: calls yangmap, then falls back to CLI |
+| 2 — after the key safeguard | failure | failure |
+| 3 — after the transport description | ✅ **correct figures** | ✅ **correct figures** |
 
-**C'est le correctif de description qui a débloqué, pas yangmap.** Rien ne
-disait au modèle qu'un équipement gNMI refuse toute CLI ; il dépensait ses
-appels en reformulations `show router route-table …` toutes refusées, puis
-concluait « je ne peux pas répondre ». Une fois informé de la *forme* attendue,
-il a retrouvé le chemin Nokia de lui-même — sans yangmap.
+**It's the description fix that unblocked it, not yangmap.** Nothing told the
+model that a gNMI-only device refuses all CLI; it spent its calls rephrasing
+`show router route-table …` variants, all refused, then concluded "I can't
+answer." Once informed of the expected *shape*, it found the Nokia path on
+its own — without yangmap.
 
-C'est un résultat honnête et utile : **sur les chemins que le modèle connaît
-déjà, yangmap n'apporte rien.**
+This is an honest and useful result: **on paths the model already knows,
+yangmap adds nothing.**
 
-### La batterie qui tranche G6
+### The battery that settles G6
 
-Trois questions de difficulté croissante, vérité terrain relevée par gNMI
-direct **avant** la campagne, six passes complètes :
+Three questions of increasing difficulty, ground truth read directly via gNMI
+**before** the campaign, six full passes:
 
-| Question | Config | Valeurs attendues trouvées | Appels | yangmap appelé | Durée |
+| Question | Config | Expected values found | Calls | yangmap called | Duration |
 |---|---|---|---|---|---|
-| **Q1** transceiver du port 1/1/c1 | SANS | **0/2** | **12** (budget épuisé) | — | **476 s** |
-| | AVEC | **2/2** | **3** | oui | **38 s** |
-| **Q2** prefix-SID ISIS | SANS | 2/2 | 1 | — | 22 s |
-| | AVEC | 2/2 | 2 | **non** | 30 s |
-| **Q3** sessions LDP (réponse négative) | SANS | — correct | 6 | — | 123 s |
-| | AVEC | — correct | 9 | oui | 216 s |
+| **Q1** transceiver on port 1/1/c1 | WITHOUT | **0/2** | **12** (budget exhausted) | — | **476 s** |
+| | WITH | **2/2** | **3** | yes | **38 s** |
+| **Q2** ISIS prefix-SID | WITHOUT | 2/2 | 1 | — | 22 s |
+| | WITH | 2/2 | 2 | **no** | 30 s |
+| **Q3** LDP sessions (negative answer) | WITHOUT | — correct | 6 | — | 123 s |
+| | WITH | — correct | 9 | yes | 216 s |
 
-**Q1 est le cas où yangmap est décisif.** Sans lui, le modèle a inventé des
-chemins Nokia plausibles et inexistants — `/state/optical-module` (trois fois),
-`/state/interface`, `/state/transceiver`, `/components` — a épuisé ses douze
-appels, et a conclu qu'il n'avait aucune information. **Huit minutes et douze
-approbations humaines pour rien.** Avec yangmap : trois appels, trente-huit
-secondes, `qsfp` et `1302 nm`, exacts.
+**Q1 is the case where yangmap is decisive.** Without it, the model invented
+plausible, nonexistent Nokia paths — `/state/optical-module` (three times),
+`/state/interface`, `/state/transceiver`, `/components` — burned through its
+twelve calls, and concluded it had no information. **Eight minutes and twelve
+human approvals for nothing.** With yangmap: three calls, thirty-eight
+seconds, `qsfp` and `1302 nm`, exact.
 
-**Q2 montre la limite.** `segment_routing` est un collecteur nommé du
-catalogue : le modèle l'a utilisé directement et n'a même pas appelé yangmap.
-Bon réflexe — mais l'appel supplémentaire à `netlive_instances` a coûté 8 s de
-plus.
+**Q2 shows the limit.** `segment_routing` is a named collector in the
+catalog: the model used it directly and didn't even call yangmap. Good
+instinct — but the extra call to `netlive_instances` cost 8 more seconds.
 
-**Q3 montre le coût quand yangmap ne sert pas.** Réponse correcte des deux
-côtés, mais 9 appels et 216 s avec, contre 6 et 123 s sans : l'exploration
-supplémentaire est du gaspillage sur une question dont la réponse est négative.
+**Q3 shows the cost when yangmap doesn't help.** Correct answer on both
+sides, but 9 calls and 216 s with it, versus 6 and 123 s without: the extra
+exploration is wasted effort on a question whose answer is negative.
 
-**Conclusion — G6 ✅, avec sa nuance :** yangmap est décisif là où aucun
-collecteur nommé n'existe et où le chemin est obscur. Il est neutre quand le
-catalogue couvre déjà le besoin, et **coûteux quand il ne sert pas**. Il
-complète le catalogue, il ne le remplace pas.
+**Conclusion — G6 ✅, with its caveat:** yangmap is decisive where no named
+collector exists and the path is obscure. It's neutral when the catalog
+already covers the need, and **costly when it doesn't help**. It complements
+the catalog; it doesn't replace it.
 
-## H — Reproductibilité
+## H — Reproducibility
 
-| # | Critère | État | Mesure |
+| # | Criterion | State | Measurement |
 |---|---|---|---|
-| H1 | `fetch` puis `build` depuis rien | ✅ | Arista depuis un répertoire vide : **3,2 s + 2,3 s** |
-| H2 | Bundles et index non versionnés | ✅ | `.gitignore` + `git ls-files` |
-| H3 | Chiffres du README exacts | ✅ | Repris des mesures ci-dessus |
-| H4 | Chaque garantie du README a son test nommé | ✅ | 5 lignes, 5 tests |
-| H5 | Suite hors matériel et hors réseau | ✅ | 91 tests, marques `lab`/`build` séparées |
+| H1 | `fetch` then `build` from nothing | ✅ | Arista from an empty directory: **3.2 s + 2.3 s** |
+| H2 | Bundles and indexes not version-controlled | ✅ | `.gitignore` + `git ls-files` |
+| H3 | README figures accurate | ✅ | Taken from the measurements above |
+| H4 | Every README guarantee has its named test | ✅ | 5 lines, 5 tests |
+| H5 | Suite runs without hardware or network | ✅ | 91 tests, `lab`/`build` marks kept separate |
 
-## Ce qui reste ouvert
+## What remains open
 
-| # | État | Décision |
+| # | State | Decision |
 |---|---|---|
-| E4 | ⚠️ | 100 % sur 21 cas est un bon signal, pas une preuve de généralité. Le jeu d'or grandira avec les échecs constatés — même logique que `netlive gaps` |
+| E4 | ⚠️ | 100% on 21 cases is a good signal, not proof of generality. The golden set will grow with failures observed in use — same logic as `netlive gaps` |
 
-**Piste ouverte par Q3** : yangmap coûte des appels quand il ne sert pas. La
-description de `yang_chercher` pourrait dire d'essayer d'abord les collecteurs
-nommés. À mesurer avant d'écrire — c'est la discipline de ce projet.
+**Avenue opened by Q3**: yangmap costs extra calls when it doesn't help. The
+`yang_chercher` description could suggest trying named collectors first. To
+be measured before writing it — that's this project's discipline.
 
-## Effets de bord sur netlive
+## Side effects on netlive
 
-Trois changements, tous nés de la confrontation, tous couverts par des tests :
+Three changes, all born from this confrontation, all covered by tests:
 
-| Changement | Pourquoi |
+| Change | Why |
 |---|---|
-| `LiaisonMultiple` | Plusieurs serveurs MCP présentés à l'agent comme un seul, sans toucher à la boucle |
-| Clé `=?` refusée sans contact | Empêchait un faux `not_configured` — le défaut le plus grave de la campagne |
-| `netlive_run` décrit par transport | Le modèle ignorait qu'un équipement gNMI refuse toute CLI |
+| `LiaisonMultiple` | Several MCP servers presented to the agent as one, without touching the loop |
+| `=?` key refused without contact | Prevented a false `not_configured` — the most serious defect of the campaign |
+| `netlive_run` described by transport | The model didn't know a gNMI-only device refuses all CLI |
 
-**359 tests hors lab côté netlive (+15), 13 contre le lab, aucune régression.**
+**359 tests outside the lab on the netlive side (+15), 13 against the lab, no
+regressions.**

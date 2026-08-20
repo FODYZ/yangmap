@@ -1,11 +1,11 @@
-"""Quel bundle sert une version demandée, et avec quel écart.
+"""Which bundle serves a requested version, and with what gap.
 
-Les vendeurs ne publient pas leur YANG à chaque révision : mesuré le
-2026-08-10, Nokia publie `sros_24.3.r3` au patch près, Cisco et Arista
-s'arrêtent au train. Le repli est donc le **cas normal sur deux vendeurs sur
-trois**, et il doit être annoncé — jamais silencieux (cahier D2, D3, D6).
+Vendors don't publish their YANG at every revision: measured on 2026-08-10,
+Nokia publishes `sros_24.3.r3` down to the patch, Cisco and Arista stop at
+the train. Falling back is therefore the **normal case on two vendors out of
+three**, and it must be reported — never silent (criteria D2, D3, D6).
 
-Module pur : il raisonne sur des noms de version, pas sur des fichiers.
+Pure module: it reasons over version names, not files.
 """
 
 from __future__ import annotations
@@ -43,23 +43,22 @@ class Resolution:
     ecart: Ecart
     demandee: str
     message: str | None
-    """Rendu tel quel au client. `None` seulement quand l'écart est nul."""
+    """Returned as-is to the client. `None` only when the gap is nil."""
 
 
 _NOMBRES = re.compile(r"\d+")
 
 
 def analyser_version(brut: str) -> Version:
-    """Extrait (majeur, mineur, patch) d'une version de n'importe quel vendeur.
+    """Extracts (major, minor, patch) from any vendor's version string.
 
-    Tolère les formes réelles rencontrées : `24.3.R3`, `17.3.4a`, `4.32.11M`,
-    `24.3`, `sros_24.3.r3`. Ce qui n'est pas un nombre est ignoré : les
-    suffixes de qualification (`F`, `M`, `a`) ne hiérarchisent rien
-    d'exploitable ici.
+    Tolerates the real forms encountered: `24.3.R3`, `17.3.4a`, `4.32.11M`,
+    `24.3`, `sros_24.3.r3`. Anything that isn't a number is ignored:
+    qualification suffixes (`F`, `M`, `a`) don't order anything usable here.
     """
     nombres = _NOMBRES.findall(brut or "")
     if not nombres:
-        raise ResolutionError(f"version illisible : {brut!r}")
+        raise ResolutionError(f"unreadable version: {brut!r}")
     valeurs = [int(n) for n in nombres[:3]]
     while len(valeurs) < 3:
         valeurs.append(0)
@@ -67,15 +66,15 @@ def analyser_version(brut: str) -> Version:
 
 
 def resoudre(demandee: str | None, disponibles: list[str]) -> Resolution:
-    """Choisit le bundle le plus proche et qualifie l'écart.
+    """Picks the closest bundle and qualifies the gap.
 
-    Sans version demandée, la plus récente est servie — un choix, donc il est
-    annoncé comme les autres.
+    With no requested version, the most recent one is served — a choice,
+    so it's announced like any other.
     """
     if not disponibles:
         raise ResolutionError(
-            "aucun bundle installé pour cette plateforme — "
-            "jouer `yangmap fetch <plateforme> <version>`"
+            "no bundle installed for this platform — "
+            "run `yangmap fetch <platform> <version>`"
         )
 
     versions = sorted(
@@ -86,8 +85,8 @@ def resoudre(demandee: str | None, disponibles: list[str]) -> Resolution:
     if not demandee:
         choisie = versions[-1]
         return Resolution(
-            choisie, Ecart.EXACT, "(non précisée)",
-            f"Version non précisée : bundle {choisie} servi (le plus récent).",
+            choisie, Ecart.EXACT, "(unspecified)",
+            f"No version specified: bundle {choisie} served (the most recent).",
         )
 
     cible = analyser_version(demandee)
@@ -96,27 +95,25 @@ def resoudre(demandee: str | None, disponibles: list[str]) -> Resolution:
         if v == cible:
             return Resolution(v, Ecart.EXACT, demandee, None)
 
-    # Même train : on reste sur la même famille de fonctionnalités, l'écart
-    # est mineur.
+    # Same train: we stay on the same feature family, the gap is minor.
     du_train = [v for v in versions if v.train == cible.train]
     if du_train:
         choisie = min(du_train, key=lambda v: abs(v.patch - cible.patch))
         return Resolution(
             choisie, Ecart.MEME_TRAIN, demandee,
-            f"Version {demandee} non publiée par le vendeur : bundle "
-            f"{choisie} servi (même train {cible.majeur}.{cible.mineur}). "
-            f"Les chemins peuvent différer à la marge.",
+            f"Version {demandee} not published by the vendor: bundle "
+            f"{choisie} served (same train {cible.majeur}.{cible.mineur}). "
+            f"Paths may differ at the margin.",
         )
 
-    # Train différent : l'écart peut être structurel, l'avertissement est plus
-    # fort.
+    # Different train: the gap may be structural, the warning is stronger.
     choisie = min(
         versions,
         key=lambda v: (abs(v.majeur - cible.majeur), abs(v.mineur - cible.mineur)),
     )
     return Resolution(
         choisie, Ecart.AUTRE_TRAIN, demandee,
-        f"ATTENTION : aucun bundle du train {cible.majeur}.{cible.mineur}. "
-        f"Bundle {choisie} servi à la place. Des chemins peuvent ne pas "
-        f"exister sur la version {demandee}.",
+        f"WARNING: no bundle for train {cible.majeur}.{cible.mineur}. "
+        f"Bundle {choisie} served instead. Some paths may not "
+        f"exist on version {demandee}.",
     )

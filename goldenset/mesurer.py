@@ -1,11 +1,10 @@
-"""Banc de mesure du classement — c'est lui qui décide des pondérations.
+"""Ranking measurement bench — it decides the weights.
 
-    python goldenset/mesurer.py              mesure le réglage courant
-    python goldenset/mesurer.py --ablation   retire un signal à la fois (E10)
-    python goldenset/mesurer.py --detail     montre les échecs, résultat par résultat
+    python goldenset/mesurer.py              measures the current tuning
+    python goldenset/mesurer.py --ablation   removes one signal at a time (E10)
+    python goldenset/mesurer.py --detail     shows failures, result by result
 
-Aucune pondération ne doit être changée sans que ce banc ait dit qu'elle
-améliore quelque chose.
+No weight should be changed without this bench saying it improves something.
 """
 
 from __future__ import annotations
@@ -57,7 +56,7 @@ def _index(racine: Path, plateforme: str) -> Path:
     bases = sorted(base.glob("*.db"))
     if not bases:
         raise SystemExit(
-            f"aucun index pour {plateforme} — jouer `yangmap fetch` puis `build`"
+            f"no index for {plateforme} — run `yangmap fetch` then `build`"
         )
     return bases[-1]
 
@@ -89,7 +88,7 @@ def _rapport(mesures: list[Mesure], detail: bool) -> None:
     for m in mesures:
         par_plateforme.setdefault(m.cas.plateforme, []).append(m)
 
-    print(f"{'plateforme':<14} {'reussis':>9} {'total':>6} {'taux':>7}")
+    print(f"{'platform':<14} {'passed':>9} {'total':>6} {'rate':>7}")
     print("-" * 40)
     for plateforme, groupe in sorted(par_plateforme.items()):
         n = sum(m.reussi for m in groupe)
@@ -100,11 +99,11 @@ def _rapport(mesures: list[Mesure], detail: bool) -> None:
 
     echecs = [m for m in mesures if not m.reussi]
     if echecs:
-        print(f"\n{len(echecs)} echec(s) :")
+        print(f"\n{len(echecs)} failure(s):")
         for m in echecs:
-            rang = m.rang if m.rang else "absent des 50"
-            print(f"\n  ✗ [{m.cas.plateforme}] « {m.cas.question} »  (rang : {rang})")
-            print(f"    attendu : {m.cas.attendu}")
+            rang = m.rang if m.rang else "absent from top 50"
+            print(f"\n  ✗ [{m.cas.plateforme}] \"{m.cas.question}\"  (rank: {rang})")
+            print(f"    expected: {m.cas.attendu}")
             if detail:
                 for i, chemin in enumerate(m.premiers, 1):
                     print(f"      {i}. {chemin[:96]}")
@@ -126,13 +125,13 @@ def main() -> int:
         return 0 if taux(reference) >= 80 else 1
 
     base = taux(reference)
-    print(f"reference : {base:.0f}%  ({len(cas)} cas)\n")
-    print(f"{'signal neutralise':<22} {'taux':>7} {'delta':>8}  verdict")
+    print(f"baseline: {base:.0f}%  ({len(cas)} cases)\n")
+    print(f"{'signal neutralized':<22} {'rate':>7} {'delta':>8}  verdict")
     print("-" * 60)
     for nom in search.DEFAUT.__dataclass_fields__:
         t = taux(mesurer(cas, search.sans_signal(search.DEFAUT, nom), racine))
         delta = t - base
-        verdict = "UTILE" if delta < 0 else ("inutile" if delta == 0 else "NUISIBLE")
+        verdict = "USEFUL" if delta < 0 else ("useless" if delta == 0 else "HARMFUL")
         print(f"{nom:<22} {t:>6.0f}% {delta:>+7.0f}%  {verdict}")
     return 0
 

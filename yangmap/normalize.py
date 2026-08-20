@@ -1,12 +1,12 @@
-"""xpath pyang ⟶ chemin gNMI.
+"""pyang xpath ⟶ gNMI path.
 
-pyang rend l'identité d'un nœud dans le *schéma* : préfixée par le module,
-clés nommées mais sans valeur. Un client gNMI a besoin d'autre chose — le
-chemin dans l'arbre de *données*, où les préfixes de module ne figurent pas
-et où les clés attendent une valeur.
+pyang returns a node's identity in the *schema*: prefixed by the module,
+keys named but without a value. A gNMI client needs something else — the
+path in the *data* tree, where module prefixes don't appear and keys await a
+value.
 
-Module pur : aucune entrée/sortie, aucun état. Il se teste sans YANG, sans
-réseau et sans base (cf. cahier C6).
+Pure module: no I/O, no state. It can be tested with no YANG, no network,
+and no database (see criterion C6).
 """
 
 from __future__ import annotations
@@ -14,54 +14,54 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-# Un segment ressemble à `router[router-name]`, `nokia-state:state`, ou
+# A segment looks like `router[router-name]`, `nokia-state:state`, or
 # `host[ip-address][mac-address][pppoe-session-id]`.
 _CLES = re.compile(r"\[([^\]]+)\]")
 
 
 @dataclass(frozen=True)
 class Chemin:
-    """Les deux formes d'un même nœud, plus ce qu'il faut pour le requêter."""
+    """Both forms of the same node, plus what's needed to query it."""
 
     xpath: str
-    """Forme canonique de pyang, préfixes de module conservés. C'est
-    l'identité du nœud dans le schéma, et la clé de recherche exacte."""
+    """pyang's canonical form, module prefixes kept. This is the node's
+    identity in the schema, and the exact search key."""
 
     gnmi: str
-    """Forme prête pour un Get gNMI : sans préfixe, clés marquées `=?`."""
+    """Form ready for a gNMI Get: no prefix, keys marked `=?`."""
 
     module: str | None
-    """Module d'origine, quand le segment le portait. Un consommateur qui a
-    besoin d'un chemin qualifié peut le reconstruire ; aucun ne le perd."""
+    """Source module, when the segment carried one. A consumer that needs
+    a qualified path can reconstruct it; none is ever lost."""
 
     cles: tuple[str, ...]
-    """Clés à renseigner, dans l'ordre où elles apparaissent."""
+    """Keys to fill in, in the order they appear."""
 
     profondeur: int
-    """Nombre de segments. Un signal de classement : neuf segments désignent
-    un sous-système spécialisé, quatre le cœur d'un équipement."""
+    """Number of segments. A ranking signal: nine segments denote a
+    specialized subsystem, four denote the core of a device."""
 
     segments: tuple[str, ...]
-    """Noms de segments, sans clés ni préfixes — le texte indexé."""
+    """Segment names, without keys or prefixes — the indexed text."""
 
 
 def _decoupe(segment: str) -> tuple[str, str | None, list[str]]:
-    """Rend (nom, module, clés) pour un segment de xpath."""
+    """Returns (name, module, keys) for an xpath segment."""
     corps, _, reste = segment.partition("[")
     cles = _CLES.findall("[" + reste) if reste else []
 
     module = None
     nom = corps
     if ":" in corps:
-        # `openconfig-platform-transceiver:transceiver` — le préfixe nomme le
-        # module qui augmente l'arbre, pas un niveau de l'arbre.
+        # `openconfig-platform-transceiver:transceiver` — the prefix names
+        # the module that augments the tree, not a level of the tree.
         module, _, nom = corps.rpartition(":")
 
     return nom, module, cles
 
 
 def analyser(xpath: str) -> Chemin:
-    """Décompose un xpath pyang en ses deux formes utiles."""
+    """Splits a pyang xpath into its two useful forms."""
     bruts = [s for s in xpath.strip().strip("/").split("/") if s]
 
     noms: list[str] = []
@@ -76,8 +76,8 @@ def analyser(xpath: str) -> Chemin:
         noms.append(nom)
         cles_totales.extend(cles)
 
-        # Une clé déjà porteuse d'une valeur est laissée intacte : elle vient
-        # d'un appelant qui sait ce qu'il veut, pas du schéma.
+        # A key that already carries a value is left untouched: it came
+        # from a caller who knows what it wants, not from the schema.
         marquees = "".join(
             f"[{c}]" if "=" in c else f"[{c}=?]" for c in cles
         )
@@ -94,10 +94,10 @@ def analyser(xpath: str) -> Chemin:
 
 
 def mots_de(chemin: str) -> str:
-    """Segments d'un chemin réduits en mots, pour l'indexation plein texte.
+    """Reduces a path's segments to words, for full-text indexing.
 
-    `route-table` devient « route-table route table » : un ingénieur cherche
-    « table de routage » sans le trait d'union, et FTS5 ne coupe pas dessus.
+    `route-table` becomes "route-table route table": an engineer searches
+    for "routing table" without the hyphen, and FTS5 doesn't split on it.
     """
     vus: list[str] = []
     for segment in analyser(chemin).segments:

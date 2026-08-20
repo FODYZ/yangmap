@@ -1,8 +1,8 @@
-"""L'API que le serveur MCP expose, et que netlive peut appeler en direct.
+"""The API the MCP server exposes, and that netlive can call directly.
 
-Séparée de `server.py` pour que l'intégration à un autre outil n'oblige pas à
-passer par un sous-processus MCP — et pour que les tests portent sur la
-logique, pas sur le transport.
+Kept separate from `server.py` so integrating with another tool doesn't
+require going through an MCP subprocess — and so tests exercise the logic,
+not the transport.
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ PLATEFORMES = ("nokia_sros", "cisco_iosxe", "arista_eos")
 
 @dataclass(frozen=True)
 class Carte:
-    """Accès aux index construits, sans aucune connexion à quoi que ce soit."""
+    """Access to built indexes, with no connection to anything."""
 
     racine: Path = RACINE_DEFAUT
 
@@ -42,22 +42,22 @@ class Carte:
     def _ouvrir(self, plateforme: str, version: str | None):
         if plateforme not in PLATEFORMES:
             raise ResolutionError(
-                f"plateforme inconnue : {plateforme!r} "
-                f"(connues : {', '.join(PLATEFORMES)}). "
-                "Aucun repli sur un autre vendeur n'est fait."
+                f"unknown platform: {plateforme!r} "
+                f"(known: {', '.join(PLATEFORMES)}). "
+                "No fallback to another vendor is performed."
             )
         dispo = self.versions(plateforme)
         if not dispo:
             raise IndexError_(
-                f"aucun index pour {plateforme} — jouer "
-                f"`yangmap fetch {plateforme} <version>` puis "
+                f"no index for {plateforme} — run "
+                f"`yangmap fetch {plateforme} <version>` then "
                 f"`yangmap build {plateforme} <version>`"
             )
         res = resoudre(version, dispo)
         conn = idx.ouvrir(self._index / plateforme / f"{res.version}.db")
         return conn, res
 
-    # -- outils exposés ----------------------------------------------------
+    # -- exposed tools -------------------------------------------------
 
     def chercher(
         self,
@@ -92,18 +92,19 @@ class Carte:
             ],
             "message": (
                 None if trouves else
-                f"Aucun chemin ne correspond à {sujet!r} sur {plateforme} "
-                f"{res.version}. Ne pas inventer de chemin : reformuler, ou "
-                f"conclure que cette information n'est pas modélisée."
+                f"No path matches {sujet!r} on {plateforme} "
+                f"{res.version}. Do not invent a path: rephrase, or "
+                f"conclude that this information isn't modeled."
             ),
-            # Un chemin recopié sans substituer ses clés produit un résultat
-            # vide, que netlive traduisait en « fonction non configurée » —
-            # une conclusion fausse et assurée. Défaut trouvé sur le lab réel
-            # le 2026-08-10. Le rappel n'est émis que lorsqu'il sert.
+            # A path copied back without substituting its keys produces an
+            # empty result, which netlive translated into "feature not
+            # configured" — a confidently wrong conclusion. Defect found on
+            # the real lab on 2026-08-10. The reminder is only emitted when
+            # it's actually useful.
             "action_requise": (
-                "Remplacer chaque « =? » par une valeur réelle AVANT "
-                "d'interroger un équipement (ex. [router-name=Base]). Un "
-                "chemin laissé avec « =? » sera refusé."
+                "Replace every '=?' with a real value BEFORE querying "
+                "equipment (e.g. [router-name=Base]). A path left with "
+                "'=?' will be refused."
                 if any(r.noeud.cles for r in trouves) else None
             ),
         }
@@ -119,8 +120,8 @@ class Carte:
             noeud = idx.par_chemin(conn, chemin)
             if noeud is None:
                 raise IndexError_(
-                    f"chemin inconnu dans {plateforme} {res.version} : {chemin!r}. "
-                    "Utiliser `yang_chercher` pour en obtenir un valide."
+                    f"unknown path in {plateforme} {res.version}: {chemin!r}. "
+                    "Use `yang_chercher` to obtain a valid one."
                 )
             fils = idx.enfants(conn, noeud)
         finally:
@@ -153,7 +154,7 @@ class Carte:
 
 
 def en_erreur(e: Exception) -> dict[str, Any]:
-    """Rend une erreur au modèle comme un fait, jamais comme un vide."""
+    """Returns an error to the model as a fact, never as a void."""
     return {
         "status": "error",
         "message": str(e) if isinstance(e, YangmapError) else f"{type(e).__name__}: {e}",

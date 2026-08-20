@@ -1,12 +1,12 @@
-"""L'index : SQLite FTS5, sans aucune dépendance externe.
+"""The index: SQLite FTS5, with no external dependency.
 
-`sqlite3` de la bibliothèque standard porte FTS5 **et** `bm25()`. C'est ce qui
-permet au serveur de tourner sans rien installer — et donc de tenir le critère
-A5 : démarrer et répondre sans accès réseau.
+The standard library's `sqlite3` carries FTS5 **and** `bm25()`. That's what
+lets the server run with nothing to install — and therefore meet criterion
+A5: start and respond with no network access.
 
-Ce module ne sait pas construire un index (voir `indexer.py`), seulement le
-lire et l'écrire. La séparation compte : le serveur MCP n'importe que celui-ci,
-jamais pyang.
+This module doesn't know how to build an index (see `indexer.py`), only how
+to read and write one. The separation matters: the MCP server only imports
+this one, never pyang.
 """
 
 from __future__ import annotations
@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS noeuds (
 
 CREATE INDEX IF NOT EXISTS idx_chemin ON noeuds(chemin);
 
--- Table externe : le texte n'est pas dupliqué, FTS5 pointe sur `noeuds`.
+-- External-content table: text isn't duplicated, FTS5 points at `noeuds`.
 CREATE VIRTUAL TABLE IF NOT EXISTS recherche USING fts5(
     segments,
     description,
@@ -78,7 +78,7 @@ def ouvrir(chemin: Path, creer: bool = False) -> sqlite3.Connection:
     chemin = Path(chemin)
     if not creer and not chemin.exists():
         raise IndexError_(
-            f"index absent : {chemin} — jouer `yangmap build <plateforme> <version>`"
+            f"missing index: {chemin} — run `yangmap build <platform> <version>`"
         )
     if creer:
         chemin.parent.mkdir(parents=True, exist_ok=True)
@@ -105,10 +105,10 @@ def compter(conn: sqlite3.Connection) -> int:
 
 
 def par_chemin(conn: sqlite3.Connection, chemin: str) -> Noeud | None:
-    """Retrouve un nœud par son chemin gNMI, ou par son xpath canonique.
+    """Finds a node by its gNMI path, or by its canonical xpath.
 
-    Les deux sont acceptés parce que le modèle peut recopier l'un ou l'autre :
-    refuser le xpath canonique le punirait d'avoir lu la réponse en entier.
+    Both are accepted because the model may copy back either one: refusing
+    the canonical xpath would punish it for having read the full response.
     """
     for colonne in ("chemin", "xpath"):
         ligne = conn.execute(
@@ -120,10 +120,10 @@ def par_chemin(conn: sqlite3.Connection, chemin: str) -> Noeud | None:
 
 
 def enfants(conn: sqlite3.Connection, noeud: Noeud) -> list[Noeud]:
-    """Enfants **immédiats** d'un nœud, jamais son sous-arbre entier.
+    """**Immediate** children of a node, never its whole subtree.
 
-    Rendre le sous-arbre reproduirait le problème que yangmap existe pour
-    résoudre : noyer le modèle sous des milliers de chemins.
+    Returning the subtree would reproduce the problem yangmap exists to
+    solve: drowning the model under thousands of paths.
     """
     prefixe = noeud.xpath.rstrip("/") + "/"
     lignes = conn.execute(

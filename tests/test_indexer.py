@@ -1,7 +1,7 @@
-"""Domaine B — ingestion et construction de l'index.
+"""Domain B — ingestion and index construction.
 
-Les tests marqués `build` exigent pyang et un bundle téléchargé ; les autres
-travaillent sur des modules YANG minuscules écrits à la volée, donc hors ligne.
+Tests marked `build` require pyang and a downloaded bundle; the others work
+on tiny YANG modules written on the fly, so they run offline.
 """
 
 from __future__ import annotations
@@ -22,14 +22,14 @@ module essai-etat {
   namespace "urn:essai:etat";
   prefix ee;
   container state {
-    description "Racine d'etat de l'essai";
+    description "Test state root";
     list port {
       key "port-id";
-      description "Liste des ports";
-      leaf port-id { type string; description "Identifiant du port"; }
+      description "List of ports";
+      leaf port-id { type string; description "Port identifier"; }
       container transceiver {
         description "Enter the transceiver context";
-        leaf equipped { type boolean; description "Un transceiver est-il present"; }
+        leaf equipped { type boolean; description "Is a transceiver present"; }
       }
     }
   }
@@ -38,7 +38,7 @@ module essai-etat {
 
 MODULE_INVALIDE = """
 module essai-casse {
-  ce n'est pas du YANG
+  this is not YANG
 """
 
 
@@ -49,7 +49,7 @@ def bundle(tmp_path) -> Path:
 
 
 def test_un_module_valide_produit_des_chemins_normalises(bundle, tmp_path):
-    """B4 — chaque entrée porte les deux formes et ses clés."""
+    """B4 — every entry carries both forms and its keys."""
     destination = tmp_path / "sortie" / "essai.db"
     rapport = indexer.construire(
         [bundle / "essai-etat.yang"], [bundle], destination, "nokia_sros", "1.0.0"
@@ -71,10 +71,10 @@ def test_un_module_valide_produit_des_chemins_normalises(bundle, tmp_path):
 
 
 def test_la_construction_est_idempotente(bundle, tmp_path):
-    """B5 — reconstruire donne exactement le même nombre d'entrées.
+    """B5 — rebuilding gives exactly the same number of entries.
 
-    Sans reconstruction complète, une seconde passe doublerait les lignes FTS5
-    et fausserait tous les scores en silence.
+    Without a full rebuild, a second pass would double the FTS5 rows and
+    silently skew every score.
     """
     destination = tmp_path / "essai.db"
     args = ([bundle / "essai-etat.yang"], [bundle], destination, "nokia_sros", "1.0.0")
@@ -85,7 +85,7 @@ def test_la_construction_est_idempotente(bundle, tmp_path):
     conn = idx.ouvrir(destination)
     try:
         assert idx.compter(conn) == premier.noeuds
-        # La table FTS5 ne doit pas non plus avoir double.
+        # The FTS5 table must not be doubled either.
         n = conn.execute("SELECT COUNT(*) AS n FROM recherche").fetchone()["n"]
         assert n == premier.noeuds
     finally:
@@ -93,18 +93,18 @@ def test_la_construction_est_idempotente(bundle, tmp_path):
 
 
 def test_un_module_casse_est_signale_sans_interrompre_les_autres(bundle, tmp_path):
-    """B6 — l'échec d'un modèle ne doit pas emporter l'indexation entière."""
+    """B6 — one model's failure must not take down the whole indexing run."""
     (bundle / "essai-casse.yang").write_text(MODULE_INVALIDE, encoding="utf-8")
     rapport = indexer.construire(
         [bundle / "essai-etat.yang", bundle / "essai-casse.yang"],
         [bundle], tmp_path / "essai.db", "nokia_sros", "1.0.0",
     )
-    assert rapport.noeuds >= 5, "le module valide devait être indexé quand même"
-    assert rapport.modeles_en_echec, "l'échec devait être rapporté"
+    assert rapport.noeuds >= 5, "the valid model should have been indexed anyway"
+    assert rapport.modeles_en_echec, "the failure should have been reported"
 
 
 def test_aucun_chemin_produit_leve_une_erreur_plutot_qu_un_index_vide(tmp_path):
-    """Un index vide donnerait l'illusion d'une plateforme couverte."""
+    """An empty index would give the illusion of a covered platform."""
     (tmp_path / "vide.yang").write_text(MODULE_INVALIDE, encoding="utf-8")
     with pytest.raises(BundleError):
         indexer.construire(
@@ -114,12 +114,12 @@ def test_aucun_chemin_produit_leve_une_erreur_plutot_qu_un_index_vide(tmp_path):
 
 
 def test_aucun_fichier_a_indexer_est_refuse(tmp_path):
-    with pytest.raises(BundleError, match="aucun modèle"):
+    with pytest.raises(BundleError, match="no YANG model"):
         indexer.construire([], [], tmp_path / "x.db", "nokia_sros", "1.0.0")
 
 
 def test_aucun_csv_intermediaire_ne_subsiste(bundle, tmp_path):
-    """B7 — le CSV de pyang est un intermédiaire, pas un artefact."""
+    """B7 — pyang's CSV is an intermediate, not an artifact."""
     destination = tmp_path / "sortie" / "essai.db"
     indexer.construire(
         [bundle / "essai-etat.yang"], [bundle], destination, "nokia_sros", "1.0.0"
@@ -127,7 +127,7 @@ def test_aucun_csv_intermediaire_ne_subsiste(bundle, tmp_path):
     assert list(destination.parent.glob("*.csv")) == []
 
 
-# --- contre les bundles réellement téléchargés ------------------------------
+# --- against actually downloaded bundles ------------------------------------
 
 @pytest.mark.build
 @pytest.mark.parametrize(
@@ -135,19 +135,19 @@ def test_aucun_csv_intermediaire_ne_subsiste(bundle, tmp_path):
     [("nokia_sros", 50_000), ("cisco_iosxe", 10_000), ("arista_eos", 5_000)],
 )
 def test_les_index_reels_sont_construits_et_fournis(plateforme, minimum):
-    """B1, B2, B3 — les trois vendeurs s'indexent réellement."""
+    """B1, B2, B3 — all three vendors actually index."""
     base = RACINE_DEFAUT / "index" / plateforme
     bases = sorted(base.glob("*.db"))
     if not bases:
-        pytest.skip(f"aucun index {plateforme} construit")
+        pytest.skip(f"no {plateforme} index built")
 
     conn = idx.ouvrir(bases[-1])
     try:
         n = idx.compter(conn)
-        assert n >= minimum, f"{plateforme} : {n} chemins, attendu ≥ {minimum}"
+        assert n >= minimum, f"{plateforme}: {n} paths, expected >= {minimum}"
         avec_description = conn.execute(
             "SELECT COUNT(*) AS n FROM noeuds WHERE description != ''"
         ).fetchone()["n"]
-        assert avec_description / n > 0.90, "moins de 90 % des nœuds documentés"
+        assert avec_description / n > 0.90, "fewer than 90% of nodes documented"
     finally:
         conn.close()

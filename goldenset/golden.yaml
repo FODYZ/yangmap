@@ -1,126 +1,129 @@
-# Jeu d'or — le classement est défini par ce qu'il doit réussir.
+# Golden set — ranking is defined by what it must achieve.
 #
-# Chaque entrée : une question telle qu'un ingénieur la pose, et le motif du
-# chemin attendu. La métrique est binaire : le chemin attendu figure-t-il dans
-# les CINQ premiers résultats ?
+# Each entry: a question the way an engineer would ask it, and the pattern
+# for the expected path. The metric is binary: does the expected path appear
+# in the top FIVE results?
 #
-# Règle de composition (cahier E6) : tout motif ici doit correspondre à au
-# moins un chemin réellement présent dans l'index. Un motif sans correspondance
-# testerait la couverture du vendeur, pas le classement — c'est un autre sujet.
+# Composition rule (criterion E6): every pattern here must match at least one
+# path actually present in the index. A pattern with no match would test
+# vendor coverage, not ranking — that's a different subject.
 #
-# Les questions sont en français et les descriptions des vendeurs en anglais :
-# c'est délibéré, c'est la situation réelle.
+# Questions are deliberately kept in French, and vendor descriptions in
+# English: that's the real-world situation this project targets, and it's
+# what exercises the French->English lexicon in `yangmap/search.py`
+# (`LEXIQUE`). Translating these questions to English would silently stop
+# testing that translation layer, so don't.
 
 - question: etat des transceivers SFP
   plateforme: nokia_sros
   attendu: '^/state/port\[[^\]]*\]/transceiver/'
-  pourquoi: le sous-arbre transceiver du port, pas les compteurs DWDM cohérents
+  pourquoi: the port's transceiver subtree, not the coherent DWDM counters
 
 - question: table de routage
   plateforme: nokia_sros
   attendu: '^/state/router\[[^\]]*\]/route-table/unicast/ipv4/'
-  pourquoi: l'unicast IPv4 est le cas courant ; ni multicast ni unreachable
+  pourquoi: unicast IPv4 is the common case; neither multicast nor unreachable
 
 - question: routes actives et inactives
   plateforme: nokia_sros
-  # La question ne nomme aucune famille d'adressage : unicast comme multicast
-  # y repondent legitimement. Exiger unicast serait tester une intention que la
-  # question ne porte pas.
+  # The question names no address family: unicast and multicast both
+  # legitimately answer it. Requiring unicast would test an intent the
+  # question doesn't carry.
   attendu: 'route-table/(unicast|multicast)/ipv[46]/statistics/.*/(active|available)-routes$'
-  pourquoi: available-routes distingue explicitement FIB active et RIB inactive
+  pourquoi: available-routes explicitly distinguishes active FIB from inactive RIB
 
 - question: voisins BGP et etat des sessions
   plateforme: nokia_sros
   attendu: '^/state/router\[[^\]]*\]/bgp/neighbor\['
-  pourquoi: la liste des voisins du contexte de routage
+  pourquoi: the neighbor list of the routing context
 
 - question: adjacences ISIS
   plateforme: nokia_sros
-  # Verifie contre l'index 24.3.3 : le noeud `adjacency` existe bien sous
-  # `interface[]`. Le commentaire de netlive qui affirmait le contraire datait
-  # d'une introspection plus ancienne — l'index a tranche.
+  # Verified against the 24.3.3 index: the `adjacency` node does exist under
+  # `interface[]`. The netlive comment claiming otherwise dated from an
+  # older introspection — the index settled it.
   attendu: '/isis\[[^\]]*\]/interface\[[^\]]*\]/adjacency'
-  pourquoi: les adjacences sont listees sous l'interface ISIS
+  pourquoi: adjacencies are listed under the ISIS interface
 
 - question: statistiques PPPoE des sessions abonnes
   plateforme: nokia_sros
   attendu: '/sap\[[^\]]*\]/pppoe/statistics/'
-  pourquoi: PADI PADR PADT et les rejets — la sequence du diagnostic PPPoE
+  pourquoi: PADI PADR PADT and the drops — the PPPoE diagnostic sequence
 
 - question: temperature des optiques
   plateforme: nokia_sros
   attendu: '/transceiver/.*temperature'
-  pourquoi: la DDM du transceiver
+  pourquoi: the transceiver's DDM
 
 - question: sessions LDP
   plateforme: nokia_sros
   attendu: '/ldp/session\['
-  pourquoi: l'etat des sessions LDP avec les pairs
+  pourquoi: the state of LDP sessions with peers
 
 - question: utilisation processeur
   plateforme: nokia_sros
   attendu: '^/state/system/cpu\['
-  pourquoi: l'echantillonnage CPU du systeme
+  pourquoi: system CPU sampling
 
 - question: etat operationnel des interfaces
   plateforme: nokia_sros
   attendu: '^/state/router\[[^\]]*\]/interface\[|^/state/port\[[^\]]*\]/oper-state'
-  pourquoi: interface de routage ou etat du port physique
+  pourquoi: routing interface or physical port state
 
 - question: etat operationnel des interfaces
   plateforme: cisco_iosxe
   attendu: '^/interfaces/interface\['
-  pourquoi: le modele interfaces-oper
+  pourquoi: the interfaces-oper model
 
 - question: transceivers SFP
   plateforme: cisco_iosxe
   attendu: '^/transceiver-oper-data/'
-  pourquoi: Cisco publie un modele operationnel dedie au transceiver
+  pourquoi: Cisco publishes a dedicated operational model for the transceiver
 
 - question: voisins BGP
   plateforme: cisco_iosxe
   attendu: '^/bgp-state-data/'
-  pourquoi: l'etat BGP est dans son propre modele operationnel
+  pourquoi: BGP state lives in its own operational model
 
 - question: utilisation processeur
   plateforme: cisco_iosxe
   attendu: '^/cpu-usage/'
-  pourquoi: le modele dedie a la charge CPU
+  pourquoi: the model dedicated to CPU load
 
 - question: voisins CDP
   plateforme: cisco_iosxe
   attendu: '^/cdp-neighbor-details'
-  pourquoi: la decouverte de voisinage Cisco
+  pourquoi: Cisco's neighbor discovery
 
 - question: etat operationnel des interfaces
   plateforme: arista_eos
   attendu: '^/interfaces/interface\[[^\]]*\]/state/oper-status$'
-  pourquoi: la feuille openconfig qui porte l'etat
+  pourquoi: the openconfig leaf that carries the state
 
 - question: transceivers SFP
   plateforme: arista_eos
   attendu: '/components/component\[[^\]]*\]/transceiver'
-  pourquoi: openconfig place le transceiver sous les composants materiels
+  pourquoi: openconfig places the transceiver under hardware components
 
 - question: voisins BGP
   plateforme: arista_eos
   attendu: '/bgp/neighbors/neighbor\['
-  pourquoi: sous network-instance, protocol bgp
+  pourquoi: under network-instance, protocol bgp
 
 - question: voisins LLDP
   plateforme: arista_eos
   attendu: '^/lldp/interfaces/interface\[[^\]]*\]/neighbors'
-  pourquoi: la decouverte de voisinage normalisee
+  pourquoi: standardized neighbor discovery
 
 - question: compteurs erreurs sur les interfaces
   plateforme: arista_eos
   attendu: '/state/counters/(in|out)-errors'
-  pourquoi: les compteurs d'erreur d'interface
+  pourquoi: interface error counters
 
-# Ajoutee apres confrontation au vrai sros-lab-01 : la question ambigue
-# « routes actives et inactives » laisse legitimement passer rib-api devant,
-# mais des que l'ingenieur nomme la table de routage, c'est elle qu'il veut.
+# Added after confronting the real sros-lab-01: the ambiguous question
+# "active and inactive routes" legitimately lets rib-api rank first, but as
+# soon as the engineer names the routing table, that's the one they want.
 - question: nombre de routes actives et inactives dans la table de routage
   plateforme: nokia_sros
   attendu: 'route-table/(unicast|multicast)/ipv[46]/statistics/.*/(active|available)-routes$'
-  pourquoi: verifie sur materiel reel — host affiche 2 disponibles pour 0 active
+  pourquoi: verified on real hardware — host shows 2 available for 0 active

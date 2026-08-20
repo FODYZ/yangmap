@@ -1,13 +1,13 @@
-"""Téléchargement et localisation des modèles YANG des vendeurs.
+"""Downloading and locating vendors' YANG models.
 
-**Seul module autorisé à toucher le réseau**, et il n'est jamais appelé par le
-serveur MCP (cahier A1, A4). `yangmap fetch` est une opération d'installation ;
-à l'exécution, yangmap est hors ligne.
+**The only module allowed to touch the network**, and it is never called by
+the MCP server (criteria A1, A4). `yangmap fetch` is an installation
+operation; at runtime, yangmap is offline.
 
-Chaque vendeur publie autrement — Nokia un tag git par révision, Cisco un
-répertoire par train dans un dépôt géant, Arista un répertoire par révision
-dans un dépôt unique. Toute cette irrégularité est confinée ici : le reste du
-code ne voit que `bundles/<plateforme>/<version>/`.
+Each vendor publishes differently — Nokia a git tag per revision, Cisco a
+directory per train in a giant repository, Arista a directory per revision
+in a single repository. All this irregularity is confined here: the rest of
+the code only ever sees `bundles/<platform>/<version>/`.
 """
 
 from __future__ import annotations
@@ -42,7 +42,7 @@ def _git(*args: str, cwd: Path | None = None) -> None:
     )
     if proc.returncode != 0:
         raise BundleError(
-            f"git {' '.join(args[:2])} a échoué :\n{proc.stderr.strip()[:500]}"
+            f"git {' '.join(args[:2])} failed:\n{proc.stderr.strip()[:500]}"
         )
 
 
@@ -52,7 +52,7 @@ def _refs_distantes(depot: str, motif: str) -> list[str]:
         capture_output=True, text=True,
     )
     if proc.returncode != 0:
-        raise BundleError(f"dépôt injoignable : {depot}")
+        raise BundleError(f"repository unreachable: {depot}")
     noms = []
     for ligne in proc.stdout.splitlines():
         _, _, ref = ligne.partition("\t")
@@ -65,14 +65,14 @@ def _refs_distantes(depot: str, motif: str) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
-# Nokia SR OS — un tag git par révision : `sros_24.3.r3`
+# Nokia SR OS — a git tag per revision: `sros_24.3.r3`
 # ---------------------------------------------------------------------------
 
 def _fetch_nokia(cible: Version, dest: Path) -> str:
     depot = "https://github.com/nokia/7x50_YangModels.git"
     refs = _refs_distantes(depot, r"^sros_\d+\.\d+(\.r\d+)?$")
     if not refs:
-        raise BundleError("aucune révision SR OS publiée trouvée")
+        raise BundleError("no published SR OS revision found")
 
     exact = f"sros_{cible.majeur}.{cible.mineur}.r{cible.patch}"
     ref = exact if exact in refs else None
@@ -86,44 +86,44 @@ def _fetch_nokia(cible: Version, dest: Path) -> str:
 
 def _modeles_nokia(racine: Path) -> tuple[list[Path], list[Path]]:
     yang = racine / "YANG"
-    # Le modèle combiné porte tout l'arbre d'état en un fichier : aucune
-    # résolution d'`include` à faire, donc aucune erreur possible dessus.
+    # The combined model carries the whole state tree in one file: no
+    # `include` resolution to do, so no possible error on that front.
     etat = yang / "nokia-combined" / "nokia-state.yang"
     if not etat.exists():
-        raise BundleError(f"nokia-state.yang introuvable sous {yang}")
+        raise BundleError(f"nokia-state.yang not found under {yang}")
     return [etat], [yang, yang / "ietf"]
 
 
 # ---------------------------------------------------------------------------
-# Cisco IOS-XE — un répertoire par train dans un dépôt de 168 Mo
+# Cisco IOS-XE — a directory per train in a 168 MB repository
 # ---------------------------------------------------------------------------
 
 def _repertoire_cisco(v: Version) -> str:
-    """17.3.1 ⟶ `1731`, 17.10.1 ⟶ `17101`. Le train donne le nom."""
+    """17.3.1 ⟶ `1731`, 17.10.1 ⟶ `17101`. The train gives the name."""
     return f"{v.majeur}{v.mineur}{v.patch}"
 
 
 def _fetch_cisco(cible: Version, dest: Path) -> str:
     depot = "https://github.com/YangModels/yang.git"
-    # Checkout creux : sans lui, 168 Mo pour quelques centaines de fichiers.
+    # Sparse checkout: without it, 168 MB for a few hundred files.
     _git("clone", "--depth", "1", "--filter=blob:none", "--sparse", "-q", depot, str(dest))
     _git("sparse-checkout", "set", "vendor/cisco/xe", cwd=dest)
 
     base = dest / "vendor" / "cisco" / "xe"
     presents = sorted(p.name for p in base.iterdir() if p.is_dir() and p.name.isdigit())
     if not presents:
-        raise BundleError("aucune version IOS-XE trouvée dans le dépôt")
+        raise BundleError("no IOS-XE version found in the repository")
 
     voulu = _repertoire_cisco(cible)
     if voulu not in presents:
-        # Rester dans le train, sinon le plus proche par ordre numérique.
+        # Stay in the train, otherwise the closest one numerically.
         prefixe = f"{cible.majeur}{cible.mineur}"
         train = [p for p in presents if p.startswith(prefixe)]
         voulu = train[-1] if train else min(
             presents, key=lambda p: abs(int(p) - int(voulu))
         )
 
-    # Ne conserver que la version retenue : le reste est du poids mort.
+    # Keep only the chosen version: the rest is dead weight.
     for p in base.iterdir():
         if p.name != voulu and p.is_dir():
             shutil.rmtree(p, ignore_errors=True)
@@ -136,18 +136,18 @@ def _modeles_cisco(racine: Path) -> tuple[list[Path], list[Path]]:
     base = racine / "vendor" / "cisco" / "xe"
     dossiers = [p for p in base.iterdir() if p.is_dir() and p.name.isdigit()]
     if not dossiers:
-        raise BundleError(f"aucun répertoire de version sous {base}")
+        raise BundleError(f"no version directory under {base}")
     d = dossiers[0]
-    # Les `*-oper.yang` portent l'état opérationnel : c'est l'équivalent de
-    # `nokia-state`. Les modèles de configuration sont hors périmètre (spec §10).
+    # `*-oper.yang` carries operational state: it's the equivalent of
+    # `nokia-state`. Configuration models are out of scope (spec §10).
     fichiers = sorted(d.glob("*-oper.yang"))
     if not fichiers:
-        raise BundleError(f"aucun modèle *-oper.yang sous {d}")
+        raise BundleError(f"no *-oper.yang model under {d}")
     return fichiers, [d]
 
 
 # ---------------------------------------------------------------------------
-# Arista EOS — un répertoire par révision, dépôt unique de 4 Mo
+# Arista EOS — a directory per revision, single 4 MB repository
 # ---------------------------------------------------------------------------
 
 def _fetch_arista(cible: Version, dest: Path) -> str:
@@ -156,7 +156,7 @@ def _fetch_arista(cible: Version, dest: Path) -> str:
 
     dossiers = sorted(p.name for p in dest.iterdir() if p.name.startswith("EOS-"))
     if not dossiers:
-        raise BundleError("aucune révision EOS trouvée dans le dépôt")
+        raise BundleError("no EOS revision found in the repository")
 
     prefixe = f"EOS-{cible.majeur}.{cible.mineur}."
     train = [d for d in dossiers if d.startswith(prefixe)]
@@ -172,15 +172,15 @@ def _fetch_arista(cible: Version, dest: Path) -> str:
 def _modeles_arista(racine: Path) -> tuple[list[Path], list[Path]]:
     dossiers = [p for p in racine.iterdir() if p.name.startswith("EOS-")]
     if not dossiers:
-        raise BundleError(f"aucun répertoire EOS-* sous {racine}")
+        raise BundleError(f"no EOS-* directory under {racine}")
     eos = dossiers[0]
     modeles = eos / "openconfig" / "public" / "release" / "models"
     if not modeles.is_dir():
-        raise BundleError(f"arbre openconfig introuvable sous {eos}")
+        raise BundleError(f"openconfig tree not found under {eos}")
 
-    # gNMI sur EOS parle OpenConfig. On indexe les familles utiles au
-    # troubleshooting, pas l'intégralité de l'arbre : `aft`, `gribi` ou `ate`
-    # n'ont rien à faire dans une carte de diagnostic.
+    # gNMI on EOS speaks OpenConfig. We index the families useful for
+    # troubleshooting, not the whole tree: `aft`, `gribi`, or `ate` have
+    # no business in a diagnostic map.
     familles = (
         "interfaces", "platform", "network-instance", "system", "lldp",
         "bgp", "isis", "lacp", "local-routing", "optical-transport",
@@ -190,7 +190,7 @@ def _modeles_arista(racine: Path) -> tuple[list[Path], list[Path]]:
     for famille in familles:
         fichiers += sorted((modeles / famille).glob("*.yang"))
     if not fichiers:
-        raise BundleError(f"aucun modèle openconfig utile sous {modeles}")
+        raise BundleError(f"no useful openconfig model under {modeles}")
 
     tiers = eos / "openconfig" / "public" / "third_party" / "ietf"
     return fichiers, [modeles, tiers, *[modeles / f for f in familles]]
@@ -212,11 +212,11 @@ _MODELES = {
 
 
 def telecharger(plateforme: str, version: str, racine_bundles: Path) -> Bundle:
-    """Télécharge un bundle. Rend la version **réellement** obtenue."""
+    """Downloads a bundle. Returns the version **actually** obtained."""
     if plateforme not in PLATEFORMES:
         raise BundleError(
-            f"plateforme inconnue : {plateforme!r} "
-            f"(connues : {', '.join(PLATEFORMES)})"
+            f"unknown platform: {plateforme!r} "
+            f"(known: {', '.join(PLATEFORMES)})"
         )
 
     cible = analyser_version(version)
@@ -243,7 +243,7 @@ def telecharger(plateforme: str, version: str, racine_bundles: Path) -> Bundle:
 
 
 def installes(plateforme: str, racine_bundles: Path) -> list[str]:
-    """Versions déjà téléchargées pour une plateforme."""
+    """Versions already downloaded for a platform."""
     base = Path(racine_bundles) / plateforme
     if not base.is_dir():
         return []

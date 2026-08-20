@@ -1,13 +1,13 @@
-"""Recherche et classement — le seul endroit difficile du projet.
+"""Search and ranking — the only hard part of the project.
 
-Les pondérations ci-dessous ne sont pas des intuitions : elles sont réglées
-contre le jeu d'or (`goldenset/`), et tout signal qui n'améliore aucune de ses
-entrées doit être retiré (cahier E10).
+The weights below aren't intuitions: they're tuned against the golden set
+(`goldenset/`), and any signal that doesn't improve one of its entries must
+be removed (criterion E10).
 
-Le défaut à battre est documenté et mesuré : une recherche par sous-chaîne rend
-`/state/port[]/dwdm/coherent/rx-optical-snr-x-polarization` pour « transceiver »
-et `/state/radius/route-downloader[]/…` pour « table de routage ». La donnée
-correcte est dans l'index dans les deux cas ; seul l'ordre est faux.
+The baseline to beat is documented and measured: a substring search returns
+`/state/port[]/dwdm/coherent/rx-optical-snr-x-polarization` for "transceiver"
+and `/state/radius/route-downloader[]/…` for "routing table". The correct
+data is in the index in both cases; only the order is wrong.
 """
 
 from __future__ import annotations
@@ -19,17 +19,21 @@ from dataclasses import dataclass, replace
 from yangmap.index import Noeud, _vers_noeud
 
 # ---------------------------------------------------------------------------
-# Préparation de la requête
+# Query preparation
 # ---------------------------------------------------------------------------
 
-# Les descriptions des vendeurs sont en anglais ; les questions arrivent en
-# français. Ce lexique est volontairement court et purement réseau : il traduit
-# ce qu'un ingénieur tape, pas la langue française. Toute entrée doit être
-# justifiée par une question du jeu d'or.
+# Vendor descriptions are in English; questions arrive in French. This
+# lexicon is deliberately short and purely networking-focused: it translates
+# what an engineer types, not the French language in general. Every entry
+# must be justified by a golden-set question.
 #
-# Une entrée peut rendre **plusieurs** mots : « optique » désigne indifféremment
-# l'optical, le transceiver et le SFF selon le vendeur, et n'en émettre qu'un
-# seul ferait manquer les deux autres.
+# An entry can return **several** words: "optique" indifferently denotes
+# optical, transceiver, and SFF depending on the vendor, and emitting only
+# one of them would miss the other two.
+#
+# The keys are intentionally left in French: this is the actual translation
+# table that lets a French-speaking engineer's question reach English vendor
+# vocabulary, and it's what the golden set (`goldenset/golden.yaml`) exercises.
 LEXIQUE: dict[str, str] = {
     "routage": "routing route",
     "chemin": "path route",
@@ -69,7 +73,8 @@ LEXIQUE: dict[str, str] = {
     "debit": "rate bandwidth",
 }
 
-# Mots qui n'apportent rien à la sélection et diluent le score.
+# Words that add nothing to selection and dilute the score. Kept bilingual
+# (French + English) since questions can arrive in either language.
 VIDES = frozenset("""
 a au aux avec ce ces dans de des du elle en et eux il je la le les leur lui
 ma mais me meme mes moi mon ne nos notre nous on ou par pas pour qu que qui
@@ -82,10 +87,10 @@ _MOT = re.compile(r"[a-z0-9]+", re.I)
 
 
 def _racine(mot: str) -> str:
-    """Pluriel français grossièrement retiré, pour que le préfixe FTS5 morde.
+    """French plural crudely stripped, so the FTS5 prefix can bite.
 
-    « actives » n'est pas un préfixe d'« active » : sans ce raccourcissement,
-    une question au pluriel ne trouverait jamais une description au singulier.
+    "actives" isn't a prefix of "active": without this shortening, a
+    plural question would never find a singular description.
     """
     if len(mot) > 4 and mot.endswith(("s", "x")):
         return mot[:-1]
@@ -93,7 +98,7 @@ def _racine(mot: str) -> str:
 
 
 def termes(sujet: str) -> list[str]:
-    """Question en langage naturel ⟶ termes de recherche, dédoublonnés."""
+    """Natural-language question ⟶ search terms, deduplicated."""
     sortie: list[str] = []
     for brut in _MOT.findall((sujet or "").lower()):
         if brut in VIDES or len(brut) < 2:
@@ -109,28 +114,29 @@ def termes(sujet: str) -> list[str]:
 
 
 def requete_fts(mots: list[str]) -> str:
-    """Construit une requête FTS5 tolérante : OR de préfixes.
+    """Builds a tolerant FTS5 query: OR of prefixes.
 
-    Le OR privilégie le rappel ; c'est le classement qui fait le tri. Un AND
-    rendrait zéro résultat dès qu'un mot de la question manque au schéma.
+    The OR favors recall; ranking does the sorting. An AND would return
+    zero results as soon as one word from the question is missing from
+    the schema.
     """
     return " OR ".join(f'"{m}"*' for m in mots)
 
 
 # ---------------------------------------------------------------------------
-# Classement
+# Ranking
 # ---------------------------------------------------------------------------
 
 
 @dataclass(frozen=True)
 class Poids:
-    """Chaque champ est un signal isolable, pour permettre l'ablation.
+    """Each field is an isolable signal, to allow ablation.
 
-    Ces valeurs sortent d'un balayage contre le jeu d'or, pas d'une intuition.
-    DEUX signaux supplémentaires ont été essayés puis **retirés**, faute
-    d'effet mesurable (cahier E10) : bonifier les feuilles au détriment des
-    conteneurs, et la couverture des termes de la question. Ni l'un ni
-    l'autre ne déplaçait une seule entrée du jeu d'or, à aucun poids.
+    These values come from a sweep against the golden set, not intuition.
+    TWO extra signals were tried and then **removed**, for lack of
+    measurable effect (criterion E10): boosting leaves at the expense of
+    containers, and question term coverage. Neither one moved a single
+    golden-set entry, at any weight.
     """
 
     bm25_segments: float = 10.0
@@ -149,13 +155,13 @@ class Resultat:
 
 
 def _correspond(terme: str, segment: str) -> bool:
-    """Un terme correspond à un segment si l'un préfixe l'autre.
+    """A term matches a segment if either prefixes the other.
 
-    L'égalité stricte était trop rigide : « error » ne reconnaissait pas le
-    segment `in-errors`, ni « counter » le segment `counters`. La tolérance de
-    préfixe est la même que celle de la requête FTS5, donc les deux signaux
-    parlent du même vocabulaire. Le plancher de trois caractères évite qu'un
-    mot court comme « in » morde sur « interface ».
+    Strict equality was too rigid: "error" didn't recognize the segment
+    `in-errors`, nor "counter" the segment `counters`. The prefix tolerance
+    matches the FTS5 query's, so both signals speak the same vocabulary.
+    The three-character floor keeps a short word like "in" from biting on
+    "interface".
     """
     if terme == segment:
         return True
@@ -165,11 +171,11 @@ def _correspond(terme: str, segment: str) -> bool:
 
 
 def _bonus_segment_exact(noeud: Noeud, mots: list[str]) -> float:
-    """Un terme qui EST un segment du chemin, pas seulement un mot de sa prose.
+    """A term that IS a path segment, not just a word in its prose.
 
-    C'est le signal décisif : « transceiver » est un segment entier de
-    `/state/port[]/transceiver/…` alors qu'il n'apparaît nulle part dans les
-    chemins DWDM que la sous-chaîne remontait en tête.
+    This is the decisive signal: "transceiver" is an entire segment of
+    `/state/port[]/transceiver/…`, while it appears nowhere in the DWDM
+    paths that substring search ranked first.
     """
     segments: set[str] = set()
     for segment in noeud.chemin.strip("/").split("/"):
@@ -186,14 +192,13 @@ def chercher(
     limite: int = 10,
     poids: Poids = DEFAUT,
 ) -> list[Resultat]:
-    """Rend les nœuds les plus pertinents, du meilleur au moins bon."""
+    """Returns the most relevant nodes, best to worst."""
     mots = termes(sujet)
     if not mots:
         return []
 
-    # bm25() rend une valeur d'autant plus négative que la correspondance est
-    # bonne ; on l'inverse pour additionner des signaux qui vont tous dans le
-    # même sens.
+    # bm25() returns a value that grows more negative the better the match;
+    # we invert it so all signals can be added in the same direction.
     lignes = conn.execute(
         """
         SELECT n.*, bm25(recherche, ?, ?) AS score_fts
@@ -219,7 +224,7 @@ def chercher(
 
 
 def sans_signal(poids: Poids, nom: str) -> Poids:
-    """Neutralise un signal — sert uniquement à la mesure par ablation (E10)."""
+    """Neutralizes a signal — used only for ablation measurement (E10)."""
     if nom not in poids.__dataclass_fields__:
-        raise ValueError(f"signal inconnu : {nom}")
+        raise ValueError(f"unknown signal: {nom}")
     return replace(poids, **{nom: 0.0})

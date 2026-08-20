@@ -1,4 +1,4 @@
-"""Domaines F et H — transport stdio, reproductibilité, hors-ligne."""
+"""Domains F and H — stdio transport, reproducibility, offline."""
 
 from __future__ import annotations
 
@@ -14,10 +14,10 @@ RACINE_PROJET = Path(__file__).resolve().parents[1]
 
 
 def test_le_serveur_mcp_repond_sur_stdio_sans_corrompre_le_json_rpc(racine_carte):
-    """F6 — le piège classique : une ligne parasite sur stdout tue le protocole.
+    """F6 — the classic trap: one stray line on stdout kills the protocol.
 
-    Le test parle vraiment JSON-RPC à un sous-processus, comme le ferait un
-    hôte MCP. Un `print` égaré dans n'importe quel module le ferait échouer.
+    The test actually speaks JSON-RPC to a subprocess, the way an MCP host
+    would. A stray `print` in any module would make it fail.
     """
     env = {**os.environ, "PYTHONPATH": str(RACINE_PROJET)}
     proc = subprocess.Popen(
@@ -40,8 +40,8 @@ def test_le_serveur_mcp_repond_sur_stdio_sans_corrompre_le_json_rpc(racine_carte
     })
     try:
         ligne = proc.stdout.readline()
-        assert ligne.strip(), "aucune réponse sur stdout"
-        reponse = json.loads(ligne)  # échouerait si stdout était pollué
+        assert ligne.strip(), "no response on stdout"
+        reponse = json.loads(ligne)  # would fail if stdout were polluted
         assert reponse["id"] == 1
         assert "serverInfo" in reponse["result"]
         assert reponse["result"]["serverInfo"]["name"] == "yangmap"
@@ -51,7 +51,7 @@ def test_le_serveur_mcp_repond_sur_stdio_sans_corrompre_le_json_rpc(racine_carte
 
 
 def test_l_avertissement_de_demarrage_part_sur_stderr_pas_stdout(racine_carte, tmp_path):
-    """Corollaire de F6 : même sans index, rien ne doit polluer stdout."""
+    """Corollary of F6: even with no index, nothing must pollute stdout."""
     env = {**os.environ, "PYTHONPATH": str(RACINE_PROJET)}
     proc = subprocess.Popen(
         [sys.executable, "-m", "yangmap.server", "--racine", str(tmp_path / "vide")],
@@ -61,32 +61,32 @@ def test_l_avertissement_de_demarrage_part_sur_stderr_pas_stdout(racine_carte, t
     try:
         proc.stdin.close()
         _, erreurs = proc.communicate(timeout=15)
-        assert "aucun index" in erreurs
+        assert "no index" in erreurs
     except subprocess.TimeoutExpired:
         proc.kill()
-        pytest.skip("le serveur attend toujours sur stdin")
+        pytest.skip("the server is still waiting on stdin")
     finally:
         proc.kill()
 
 
 def test_les_bundles_et_index_sont_ignores_par_git():
-    """H2 — un index de 50 000 lignes n'a rien à faire dans un dépôt."""
+    """H2 — a 50,000-line index has no business in a repository."""
     ignore = (RACINE_PROJET / ".gitignore").read_text(encoding="utf-8")
     for motif in ("bundles/", "index/", "*.db"):
-        assert motif in ignore, f"{motif} absent du .gitignore"
+        assert motif in ignore, f"{motif} missing from .gitignore"
 
     suivis = subprocess.run(
         ["git", "ls-files"], cwd=RACINE_PROJET, capture_output=True, text=True
     ).stdout.splitlines()
-    assert not [f for f in suivis if f.endswith(".db")], "un index est versionné"
-    assert not [f for f in suivis if f.startswith("bundles/")], "un bundle est versionné"
+    assert not [f for f in suivis if f.endswith(".db")], "an index is version-controlled"
+    assert not [f for f in suivis if f.startswith("bundles/")], "a bundle is version-controlled"
 
 
 def test_la_suite_hors_lab_ne_touche_ni_reseau_ni_materiel():
-    """H5 — vérifié par construction : aucun test non marqué n'ouvre de socket.
+    """H5 — verified by construction: no unmarked test opens a socket.
 
-    Les tests qui en ont besoin portent `lab` ou `build`. Ce test relit les
-    marques plutôt que de faire confiance à une convention.
+    Tests that need one carry `lab` or `build`. This test rereads the marks
+    rather than trusting a convention.
     """
     sortie = subprocess.run(
         [sys.executable, "-m", "pytest", "--collect-only", "-q", "-m",
@@ -94,5 +94,5 @@ def test_la_suite_hors_lab_ne_touche_ni_reseau_ni_materiel():
         cwd=RACINE_PROJET, capture_output=True, text=True,
     ).stdout
     assert "test_integration_netlive" not in sortie, (
-        "un test lab est collecté par la suite hors ligne"
+        "a lab test is collected by the offline suite"
     )

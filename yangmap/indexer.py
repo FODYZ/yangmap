@@ -1,12 +1,12 @@
-"""Construction d'un index depuis un bundle YANG.
+"""Building an index from a YANG bundle.
 
-Seul module à dépendre de pyang, et il n'est **jamais** importé par le serveur
-MCP — c'est ce qui permet au serveur de tourner sans pyang et sans réseau
-(cahier A1, A5).
+The only module that depends on pyang, and it is **never** imported by the
+MCP server — that's what lets the server run without pyang and without
+network access (criteria A1, A5).
 
-pyang fait tout le travail difficile : `-f flatten` rend directement
-`xpath,keyword,type,description`. Mesuré le 2026-08-10 : 0 erreur et moins de
-4 secondes sur les trois vendeurs.
+pyang does all the hard work: `-f flatten` directly returns
+`xpath,keyword,type,description`. Measured on 2026-08-10: 0 errors and under
+4 seconds across all three vendors.
 """
 
 from __future__ import annotations
@@ -34,7 +34,7 @@ DRAPEAUX = [
 
 @dataclass
 class Rapport:
-    """Ce que la construction a produit, y compris ce qui a échoué."""
+    """What the build produced, including what failed."""
 
     noeuds: int = 0
     modeles_ok: int = 0
@@ -61,7 +61,7 @@ def _lancer_pyang(
 
 
 def _ecrire(conn, lignes: list[dict[str, str]]) -> int:
-    """Insère les nœuds et alimente FTS5. Rend le nombre écrit."""
+    """Inserts the nodes and feeds FTS5. Returns the number written."""
     vus: set[str] = set()
     lot = []
     for l in lignes:
@@ -82,7 +82,7 @@ def _ecrire(conn, lignes: list[dict[str, str]]) -> int:
            VALUES (?,?,?,?,?,?,?,?,?)""",
         lot,
     )
-    # Table externe : FTS5 doit être alimentée explicitement.
+    # External-content table: FTS5 must be fed explicitly.
     conn.execute(
         "INSERT INTO recherche(rowid, segments, description) "
         "SELECT id, segments, description FROM noeuds"
@@ -97,24 +97,24 @@ def construire(
     plateforme: str,
     version: str,
 ) -> Rapport:
-    """Construit un index depuis une liste de modèles YANG.
+    """Builds an index from a list of YANG models.
 
-    Idempotent : la destination est reconstruite depuis rien à chaque appel
-    (cahier B5). Un index à moitié reconstruit serait pire que pas d'index.
+    Idempotent: the destination is rebuilt from nothing on every call
+    (criterion B5). A half-rebuilt index would be worse than no index.
     """
     if not fichiers:
-        raise BundleError("aucun modèle YANG à indexer")
+        raise BundleError("no YANG model to index")
 
     sortie, erreurs, code = _lancer_pyang(fichiers, chemins_recherche)
     rapport = Rapport()
 
     if not sortie.strip():
-        # pyang n'a rien produit : inutile d'écrire un index vide qui donnerait
-        # l'illusion d'une plateforme couverte.
+        # pyang produced nothing: writing an empty index would give the
+        # illusion of a covered platform.
         lignes_err = [l for l in erreurs.splitlines() if l.strip()][:20]
         raise BundleError(
-            "pyang n'a produit aucun chemin (code "
-            f"{code}) :\n" + "\n".join(lignes_err)
+            "pyang produced no path (code "
+            f"{code}):\n" + "\n".join(lignes_err)
         )
 
     rapport.erreurs_pyang = [l for l in erreurs.splitlines() if ": error:" in l]

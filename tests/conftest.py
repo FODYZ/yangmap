@@ -1,8 +1,8 @@
-"""Fixtures partagées : un index minuscule, construit sans pyang ni réseau.
+"""Shared fixtures: a tiny index, built without pyang or network.
 
-La suite doit tourner hors ligne et sans matériel (cahier H5). Les tests qui
-exigent un vrai bundle portent la marque `build`, ceux qui exigent le lab la
-marque `lab`.
+The suite must run offline and with no hardware (criterion H5). Tests that
+need a real bundle carry the `build` mark, those that need the lab the
+`lab` mark.
 """
 
 from __future__ import annotations
@@ -14,9 +14,9 @@ import pytest
 from yangmap import index as idx
 from yangmap.normalize import analyser, mots_de
 
-# Extraits réels de `nokia-state` 24.3.3 et d'OpenConfig : les descriptions
-# sont recopiées telles quelles, parce qu'un jeu d'essai inventé ne prouverait
-# rien sur le classement.
+# Real excerpts from `nokia-state` 24.3.3 and OpenConfig: descriptions are
+# copied verbatim, because a made-up test set would prove nothing about
+# ranking.
 ECHANTILLON = [
     ("/nokia-state:state/port[port-id]/transceiver", "container", "",
      "Enter the transceiver context"),
@@ -77,6 +77,6 @@ def conn(index_minimal):
 
 @pytest.fixture
 def racine_carte(tmp_path) -> Path:
-    """Une arborescence `~/.yangmap` complète, avec un index Nokia."""
+    """A full `~/.yangmap` tree, with a Nokia index."""
     _peupler(tmp_path / "index" / "nokia_sros" / "24.3.3.db", ECHANTILLON)
     return tmp_path

@@ -1,23 +1,24 @@
-"""Erreurs de yangmap.
+"""yangmap errors.
 
-Une erreur nomme toujours ce qu'il faut faire pour la lever. Un message qui
-constate sans orienter fait perdre du temps à l'opérateur comme au modèle.
+An error always names what needs to be done to clear it. A message that
+states a fact without pointing to a fix wastes the operator's time as much
+as the model's.
 """
 
 from __future__ import annotations
 
 
 class YangmapError(Exception):
-    """Racine — permet d'attraper tout ce qui vient de yangmap."""
+    """Root — lets callers catch anything coming from yangmap."""
 
 
 class ResolutionError(YangmapError):
-    """Version ou plateforme impossible à résoudre."""
+    """Version or platform that could not be resolved."""
 
 
 class IndexError_(YangmapError):
-    """Index absent, illisible ou incohérent."""
+    """Index missing, unreadable, or inconsistent."""
 
 
 class BundleError(YangmapError):
-    """Bundle YANG absent ou impossible à télécharger."""
+    """YANG bundle missing or impossible to download."""
