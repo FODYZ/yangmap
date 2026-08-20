@@ -16,7 +16,7 @@ import re
 import sqlite3
 from dataclasses import dataclass, replace
 
-from yangmap.index import Noeud, _vers_noeud
+from yangmap.index import Noeud, _vers_noeud, porte_l_arbre
 
 # ---------------------------------------------------------------------------
 # Query preparation
@@ -186,29 +186,49 @@ def _bonus_segment_exact(noeud: Noeud, mots: list[str]) -> float:
     return float(sum(1 for m in mots if any(_correspond(m, s) for s in segments)))
 
 
+ARBRES = ("etat", "conf", "tout")
+
+
 def chercher(
     conn: sqlite3.Connection,
     sujet: str,
     limite: int = 10,
     poids: Poids = DEFAUT,
+    arbre: str = "etat",
 ) -> list[Resultat]:
-    """Returns the most relevant nodes, best to worst."""
+    """Returns the most relevant nodes, best to worst.
+
+    `arbre` chooses where to search — `etat` by default, because that is what
+    a diagnostic gNMI Get queries. Mixing the two would degrade ranking
+    without adding value: the Nokia configuration tree is as large as the
+    state tree, and every state node has a configuration twin that would
+    compete for the same words.
+    """
+    if arbre not in ARBRES:
+        raise ValueError(f"unknown tree: {arbre!r} (known: {', '.join(ARBRES)})")
+
     mots = termes(sujet)
     if not mots:
         return []
 
+    # An index built before the distinction existed only holds state:
+    # filtering on it would be an arbitrary refusal.
+    filtre, parametres = "", []
+    if arbre != "tout" and porte_l_arbre(conn):
+        filtre, parametres = "AND n.arbre = ?", [arbre]
+
     # bm25() returns a value that grows more negative the better the match;
     # we invert it so all signals can be added in the same direction.
     lignes = conn.execute(
-        """
+        f"""
         SELECT n.*, bm25(recherche, ?, ?) AS score_fts
         FROM recherche
         JOIN noeuds n ON n.id = recherche.rowid
-        WHERE recherche MATCH ?
+        WHERE recherche MATCH ? {filtre}
         ORDER BY score_fts
         LIMIT 400
         """,
-        (poids.bm25_segments, poids.bm25_description, requete_fts(mots)),
+        (poids.bm25_segments, poids.bm25_description, requete_fts(mots), *parametres),
     ).fetchall()
 
     resultats: list[Resultat] = []

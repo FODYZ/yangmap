@@ -20,10 +20,14 @@ async def _outils(serveur):
 
 
 @pytest.mark.asyncio
-async def test_le_serveur_expose_exactement_deux_outils(serveur):
-    """F1."""
+async def test_le_serveur_expose_exactement_trois_outils(serveur):
+    """F1. The third tool, `yang_valider`, was added on 2026-08-13.
+
+    It returns no operational data and contacts no equipment:
+    it is pure index reading, just like the other two.
+    """
     noms = set(await _outils(serveur))
-    assert noms == {"yang_chercher", "yang_detail"}, noms
+    assert noms == {"yang_chercher", "yang_detail", "yang_valider"}, noms
 
 
 @pytest.mark.asyncio

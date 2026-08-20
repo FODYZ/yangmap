@@ -59,8 +59,9 @@ def test_l_avertissement_de_demarrage_part_sur_stderr_pas_stdout(racine_carte, t
         text=True, env=env, cwd=str(RACINE_PROJET),
     )
     try:
-        proc.stdin.close()
-        _, erreurs = proc.communicate(timeout=15)
+        # `communicate()` closes stdin itself; closing it beforehand raised
+        # `ValueError: I/O operation on closed file` before any assertion could run.
+        _, erreurs = proc.communicate(input="", timeout=15)
         assert "no index" in erreurs
     except subprocess.TimeoutExpired:
         proc.kill()

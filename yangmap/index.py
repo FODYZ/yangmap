@@ -33,10 +33,16 @@ CREATE TABLE IF NOT EXISTS noeuds (
     module      TEXT,
     cles        TEXT,
     profondeur  INTEGER NOT NULL,
-    segments    TEXT NOT NULL
+    segments    TEXT NOT NULL,
+    -- `etat` (queryable via gNMI Get) or `conf` (configuration tree).
+    -- Both are useful, but never for the same question: mixing them in a
+    -- single ranking would drown state under config, which is more verbose.
+    -- See `search.chercher(arbre=…)`.
+    arbre       TEXT NOT NULL DEFAULT 'etat'
 );
 
 CREATE INDEX IF NOT EXISTS idx_chemin ON noeuds(chemin);
+CREATE INDEX IF NOT EXISTS idx_arbre ON noeuds(arbre);
 
 -- External-content table: text isn't duplicated, FTS5 points at `noeuds`.
 CREATE VIRTUAL TABLE IF NOT EXISTS recherche USING fts5(
@@ -59,6 +65,11 @@ class Noeud:
     module: str | None
     cles: tuple[str, ...]
     profondeur: int
+    arbre: str = "etat"
+
+
+def _colonnes(ligne: sqlite3.Row) -> set[str]:
+    return set(ligne.keys())
 
 
 def _vers_noeud(ligne: sqlite3.Row) -> Noeud:
@@ -71,6 +82,22 @@ def _vers_noeud(ligne: sqlite3.Row) -> Noeud:
         module=ligne["module"],
         cles=tuple(c for c in (ligne["cles"] or "").split(",") if c),
         profondeur=ligne["profondeur"],
+        # An index built before the configuration tree was introduced lacks
+        # the column. It only carries state: the default is therefore correct,
+        # and an older index continues to serve without rebuild.
+        arbre=(ligne["arbre"] if "arbre" in _colonnes(ligne) else None) or "etat",
+    )
+
+
+def porte_l_arbre(conn: sqlite3.Connection) -> bool:
+    """True if this index distinguishes configuration and state.
+
+    An index older than 2026-08-13 does not. Rather than requiring a rebuild
+    — hence a network fetch — queries adapt.
+    """
+    return any(
+        l["name"] == "arbre"
+        for l in conn.execute("PRAGMA table_info(noeuds)")
     )
 
 
@@ -117,6 +144,20 @@ def par_chemin(conn: sqlite3.Connection, chemin: str) -> Noeud | None:
         if ligne:
             return _vers_noeud(ligne)
     return None
+
+
+def compter_descendants(conn: sqlite3.Connection, noeud: Noeud) -> int:
+    """Number of nodes under this one across its entire subtree.
+
+    This is the missing payload estimate: a `Get` on a container with 3,000
+    descendants saturates model context and gets truncated, which is worse
+    than a refusal — the model concludes on amputated data without knowing.
+    Counting here costs a single query and avoids the round trip.
+    """
+    prefixe = noeud.xpath.rstrip("/") + "/"
+    return conn.execute(
+        "SELECT COUNT(*) AS n FROM noeuds WHERE xpath LIKE ?", (prefixe + "%",)
+    ).fetchone()["n"]
 
 
 def enfants(conn: sqlite3.Connection, noeud: Noeud) -> list[Noeud]:

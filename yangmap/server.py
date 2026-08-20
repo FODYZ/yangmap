@@ -1,4 +1,4 @@
-"""yangmap MCP server — two tools, no equipment contact.
+"""yangmap MCP server — three tools, no equipment contact.
 
 This server connects to nothing. It reads indexes built offline and returns
 documented paths. That's what gives it a zero security surface: no
@@ -27,8 +27,17 @@ INSTRUCTIONS = (
     " no operational data: only the map of the YANG model."
     " Method: `yang_chercher` with the subject in natural language to get"
     " ranked paths, then `yang_detail` to descend the tree."
+    " Before sending a path constructed or edited by hand, pass it to"
+    " `yang_valider`: it tells you if it exists, if its keys are filled in, and"
+    " how heavy it will be, without contacting any device — one fewer round"
+    " trip, and an explicit reason instead of an empty response."
     " NEVER INVENT a path: if `yang_chercher` returns nothing, the"
     " information isn't modeled — say so rather than guess."
+    " Two trees coexist, and a search targets only one at a time:"
+    " `arbre=\"etat\"` (default) is operational state, what a diagnostic Get"
+    " queries; `arbre=\"conf\"` is the CONFIGURATION tree, to be used for"
+    " 'how is this configured' — e.g. which policy is applied to a BGP group."
+    " Try the other tree before concluding that information is not modeled."
     " The `bundle_servi` field says which version the response covers;"
     " if `ecart` is anything other than `exact`, relay the warning."
 )
@@ -43,6 +52,10 @@ _VERSION = (
     " (e.g. 24.3.R3). Optional — without it, the most recently"
     " installed version is served, and the approximation is declared."
 )
+# The details of the two trees live in INSTRUCTIONS, read once: repeating
+# them in every description would exceed the context budget protected by
+# criterion F5 (< 600 characters per tool).
+_ARBRE = "`arbre`: `etat` (default) or `conf` — see instructions."
 
 
 def _museler_les_bibliotheques() -> None:
@@ -60,10 +73,21 @@ def create_server(carte: Carte) -> MCPServer:
         plateforme: str,
         version: str | None = None,
         limite: int = 10,
+        arbre: str = "etat",
     ) -> dict[str, Any]:
         try:
-            return carte.chercher(sujet, plateforme, version, limite)
+            return carte.chercher(sujet, plateforme, version, limite, arbre=arbre)
         except Exception as e:  # noqa: BLE001 — returned to the model as a fact
+            return en_erreur(e)
+
+    def yang_valider(
+        chemin: str,
+        plateforme: str,
+        version: str | None = None,
+    ) -> dict[str, Any]:
+        try:
+            return carte.valider(chemin, plateforme, version)
+        except Exception as e:  # noqa: BLE001
             return en_erreur(e)
 
     def yang_detail(
@@ -81,9 +105,22 @@ def create_server(carte: Carte) -> MCPServer:
         name="yang_chercher",
         description=(
             "Finds the gNMI paths that carry a given piece of information,"
-            f" ranked from most to least relevant. {_SUJET} {_PLATEFORME}"
-            f" {_VERSION} Returns for each: the path ready to query, the"
-            " node kind, the data type, and the vendor description."
+            f" ranked by relevance. {_SUJET} {_PLATEFORME} {_VERSION} Returns"
+            f" the path, node kind, data type, and description. {_ARBRE}"
+        ),
+    )
+    server.add_tool(
+        yang_valider,
+        name="yang_valider",
+        description=(
+            "Validates a path BEFORE sending it to equipment, without"
+            " contacting any device. Distinguishes three failures that look"
+            " identical once returned: nonexistent path (names the faulty"
+            " segment and possible children), template key left as '=?' (empty"
+            " response, mistaken for 'not configured'), subtree too large"
+            " (truncated response, causing silent wrong conclusions)."
+            " Call on any hand-written path, and after any empty result."
+            f" {_PLATEFORME}"
         ),
     )
     server.add_tool(

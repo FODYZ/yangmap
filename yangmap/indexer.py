@@ -20,7 +20,7 @@ from pathlib import Path
 
 from yangmap import index as idx
 from yangmap.errors import BundleError
-from yangmap.normalize import analyser, mots_de
+from yangmap.normalize import analyser, arbre_de, mots_de
 
 DRAPEAUX = [
     "-f", "flatten",
@@ -73,13 +73,14 @@ def _ecrire(conn, lignes: list[dict[str, str]]) -> int:
         lot.append((
             xpath, c.gnmi, (l.get("keyword") or "").strip(),
             (l.get("type") or "").strip(), " ".join((l.get("description") or "").split()),
-            c.module, ",".join(c.cles), c.profondeur, mots_de(xpath),
+            c.module, ",".join(c.cles), c.profondeur, mots_de(xpath), arbre_de(xpath),
         ))
 
     conn.executemany(
         """INSERT OR IGNORE INTO noeuds
-           (xpath, chemin, genre, type, description, module, cles, profondeur, segments)
-           VALUES (?,?,?,?,?,?,?,?,?)""",
+           (xpath, chemin, genre, type, description, module, cles, profondeur,
+            segments, arbre)
+           VALUES (?,?,?,?,?,?,?,?,?,?)""",
         lot,
     )
     # External-content table: FTS5 must be fed explicitly.

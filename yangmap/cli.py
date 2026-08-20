@@ -62,13 +62,13 @@ def _build(args) -> int:
 
 def _chercher(args) -> int:
     r = Carte(Path(args.racine)).chercher(
-        args.sujet, args.plateforme, args.version, args.limite
+        args.sujet, args.plateforme, args.version, args.limite, arbre=args.arbre
     )
     if args.json:
         print(json.dumps(r, ensure_ascii=False, indent=2))
         return 0
 
-    print(f"{args.plateforme} {r['bundle_servi']}  ({r['ecart']})")
+    print(f"{args.plateforme} {r['bundle_servi']}  ({r['ecart']})  arbre={args.arbre}")
     if r["avertissement"]:
         print(f"  ⚠ {r['avertissement']}")
     print()
@@ -94,6 +94,25 @@ def _detail(args) -> int:
     for e in r["enfants"]:
         print(f"    {e['nom']:<32} {e['genre']:<10} {e['description'][:70]}")
     return 0
+
+
+def _valider(args) -> int:
+    r = Carte(Path(args.racine)).valider(args.chemin, args.plateforme, args.version)
+    if args.json:
+        print(json.dumps(r, ensure_ascii=False, indent=2))
+        return 0
+
+    marque = {"sur": "OK", "volumineux": "!!", "cle_manquante": "KO", "inexistant": "KO"}
+    print(f"[{marque.get(r['verdict'], '??')}] {r['verdict']} — {r['chemin_demande']}")
+    print(f"     {r['motif']}")
+    if r["noeud"]:
+        n = r["noeud"]
+        print(f"     {n['genre']}/{n['type'] or '-'} (tree {n['arbre']}) — {n['description'][:120]}")
+    if r["suggestions"]:
+        print(f"     possible children: {', '.join(r['suggestions'])}")
+    # Exit code 1 on a path that will never execute: usable as a script
+    # guardrail, like `netlive yang-sync`.
+    return 0 if r["interrogeable"] else 1
 
 
 def _versions(args) -> int:
@@ -131,8 +150,20 @@ def main(argv: list[str] | None = None) -> int:
     c.add_argument("plateforme", choices=PLATEFORMES)
     c.add_argument("--version")
     c.add_argument("--limite", type=int, default=10)
+    c.add_argument("--arbre", choices=("etat", "conf", "tout"), default="etat",
+                   help="operational state (default), configuration tree, or both ('tout')")
     c.add_argument("--json", action="store_true")
     c.set_defaults(fonction=_chercher)
+
+    va = sous.add_parser(
+        "valider",
+        help="check if a path exists, is complete, and estimate payload size",
+    )
+    va.add_argument("chemin")
+    va.add_argument("plateforme", choices=PLATEFORMES)
+    va.add_argument("--version")
+    va.add_argument("--json", action="store_true")
+    va.set_defaults(fonction=_valider)
 
     d = sous.add_parser("detail", help="detail a path and its children")
     d.add_argument("chemin")

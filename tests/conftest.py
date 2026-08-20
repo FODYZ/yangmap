@@ -12,12 +12,46 @@ from pathlib import Path
 import pytest
 
 from yangmap import index as idx
-from yangmap.normalize import analyser, mots_de
+from yangmap.normalize import analyser, arbre_de, mots_de
 
 # Real excerpts from `nokia-state` 24.3.3 and OpenConfig: descriptions are
 # copied verbatim, because a made-up test set would prove nothing about
 # ranking.
 ECHANTILLON = [
+    # Intermediate nodes are part of the sample: a real index carries
+    # all of them (pyang emits every container and every list), and a
+    # holed tree would prove nothing about `valider`, which descends
+    # segment by segment to state WHERE a path breaks.
+    ("/nokia-state:state", "container", "", "Enter the state context"),
+    ("/nokia-state:state/port[port-id]", "list", "", "Enter the port list instance"),
+    ("/nokia-state:state/port[port-id]/dwdm", "container", "", "Enter the dwdm context"),
+    ("/nokia-state:state/port[port-id]/dwdm/coherent", "container", "",
+     "Enter the coherent context"),
+    ("/nokia-state:state/router[router-name]", "list", "",
+     "Enter the router list instance"),
+    ("/nokia-state:state/router[router-name]/bgp", "container", "",
+     "Enter the bgp context"),
+    ("/nokia-state:state/router[router-name]/route-table", "container", "",
+     "Enter the route-table context"),
+    ("/nokia-state:state/router[router-name]/route-table/unicast", "container", "",
+     "Enter the unicast context"),
+    ("/nokia-state:state/router[router-name]/route-table/unicast/ipv4", "container", "",
+     "Enter the ipv4 context"),
+    ("/nokia-state:state/router[router-name]/route-table/unicast/ipv4/statistics",
+     "container", "", "Enter the statistics context"),
+    ("/nokia-state:state/router[router-name]/route-table/unicast/ipv4/statistics/aggregate",
+     "container", "", "Enter the aggregate context"),
+    ("/nokia-state:state/radius", "container", "", "Enter the radius context"),
+    ("/nokia-state:state/radius/route-downloader[name]", "list", "",
+     "Enter the route-downloader list instance"),
+    ("/nokia-state:state/radius/route-downloader[name]/statistics", "container", "",
+     "Enter the statistics context"),
+    ("/nokia-conf:configure", "container", "", "Configure system configuration"),
+    ("/nokia-conf:configure/router[router-name]", "list", "",
+     "Enter the router list instance"),
+    ("/nokia-conf:configure/router[router-name]/bgp", "container", "",
+     "Enter the bgp context"),
+    # --- Real leaves and subtrees ---
     ("/nokia-state:state/port[port-id]/transceiver", "container", "",
      "Enter the transceiver context"),
     ("/nokia-state:state/port[port-id]/transceiver/type", "leaf", "enumeration",
@@ -37,6 +71,20 @@ ECHANTILLON = [
      "Enter the neighbor list instance"),
     ("/nokia-state:state/router[router-name]/bgp/neighbor[ip-address]/session-state",
      "leaf", "enumeration", "The current state of the BGP session."),
+    # --- CONFIGURATION tree (nokia-conf) ---
+    # The exact subtree that cost several sessions on `netlab`: four
+    # yangmap searches returned nothing, not because the path is missing
+    # from the model, but because no `/configure` path was indexed.
+    ("/nokia-conf:configure/router[router-name]/bgp/group[group-name]", "list", "",
+     "Enter the group list instance"),
+    ("/nokia-conf:configure/router[router-name]/bgp/group[group-name]/export",
+     "container", "", "Enable the export context"),
+    ("/nokia-conf:configure/router[router-name]/bgp/group[group-name]/export/policy",
+     "leaf-list", "union", "BGP export policy name"),
+    ("/nokia-conf:configure/router[router-name]/bgp/group[group-name]/import",
+     "container", "", "Enable the import context"),
+    ("/nokia-conf:configure/router[router-name]/bgp/group[group-name]/import/policy",
+     "leaf-list", "union", "BGP import policy name"),
 ]
 
 
@@ -46,11 +94,12 @@ def _peupler(chemin: Path, entrees) -> Path:
     for xpath, genre, type_, description in entrees:
         c = analyser(xpath)
         lot.append((xpath, c.gnmi, genre, type_, description, c.module,
-                    ",".join(c.cles), c.profondeur, mots_de(xpath)))
+                    ",".join(c.cles), c.profondeur, mots_de(xpath), arbre_de(xpath)))
     conn.executemany(
         """INSERT OR IGNORE INTO noeuds
-           (xpath, chemin, genre, type, description, module, cles, profondeur, segments)
-           VALUES (?,?,?,?,?,?,?,?,?)""",
+           (xpath, chemin, genre, type, description, module, cles, profondeur,
+            segments, arbre)
+           VALUES (?,?,?,?,?,?,?,?,?,?)""",
         lot,
     )
     conn.execute(

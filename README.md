@@ -70,20 +70,60 @@ they regenerate from a single command.
 yangmap-mcp
 ```
 
-Two tools, and not one more:
+Three tools, and not one more:
 
 | Tool | Returns |
 |---|---|
-| `yang_chercher(subject, platform, version, limit)` | Ranked paths, with node kind, type, and vendor description |
-| `yang_detail(path, platform, version)` | The node, the keys it requires, and its **immediate children** |
+| `yang_chercher(sujet, plateforme, version, limite, arbre)` | Ranked paths, with type and vendor description |
+| `yang_detail(chemin, plateforme, version)` | The node, the keys it requires, and its **immediate children** |
+| `yang_valider(chemin, plateforme, version)` | Does this path run, and what will it return — **before** contacting anything |
 
-The second lets the model descend the tree without guessing.
+The second lets the model descend the tree without guessing. The third answers the question that follows.
+
+### `yang_valider` — the three failures that look identical
+
+A failing path returns in three ways, and once returned they are **indistinguishable**:
+
+| What happened | What the model receives | What it concludes |
+|---|---|---|
+| The path does not exist | An empty response | "The feature is not configured" |
+| A key was left as a template (`=?`) | An empty response | "The feature is not configured" |
+| The subtree is enormous | A **truncated** response | It draws conclusions from amputated data |
+
+The first two are **false facts** stated with confidence; the third is worse because it is invisible. `yang_valider` distinguishes them offline, before any contact, and returns an explicit reason instead of a blank void.
+
+```
+$ yangmap valider '/configure/router[router-name=Base]/bgp/group[group-name=transit]/export-policy' nokia_sros
+[KO] inexistant
+     unknown segment: 'export-policy' under /configure/router[]/bgp/group[].
+     Possible children: export, ebgp-default-reject-policy, import.
+
+$ yangmap valider '/state/router[router-name=Base]/interface[interface-name=*]' nokia_sros
+[!!] volumineux
+     518 nodes under this path, ~3470 characters per instance.
+```
+
+The payload threshold is **calibrated, not chosen arbitrarily**: netlive's `interfaces` collector targeted this container and returned 17,583 characters for 5 interfaces, compared to 573 when narrowed to the useful leaves. Hence ~6.7 characters per descendant and per instance — the estimator comes within 1% of this real measurement.
+
+## The two trees
+
+`arbre="etat"` (default) is operational state, what a diagnostic Get queries. `arbre="conf"` is the **configuration** tree.
+
+It was previously missing, and that absence had a cost: on `netlab`, four consecutive searches for `bgp group export-policy` returned **nothing** — not because the path is missing from the model, but because no `/configure` path was indexed. With `arbre="conf"`, the correct path ranks **first**:
+
+```
+$ yangmap chercher "bgp group export policy" nokia_sros --arbre conf
+  [  33.44] /configure/router[router-name=?]/bgp/group[group-name=?]/export/policy
+            leaf-list/union — BGP export policy name
+```
+
+The two trees never mix in the same ranking: every state node has a configuration twin that would compete for the exact same words. Measured: the Nokia golden set stays at **11/11** after doubling the index.
 
 ## Platforms
 
 | Platform | YANG source | Indexed models | Paths | Descriptions |
 |---|---|---|---|---|
-| `nokia_sros` | [nokia/7x50_YangModels](https://github.com/nokia/7x50_YangModels), tag per revision | `nokia-state` | 50,772 | 98% |
+| `nokia_sros` | [nokia/7x50_YangModels](https://github.com/nokia/7x50_YangModels), tag per revision | `nokia-state` + `nokia-conf` | 115,557 | 98% |
 | `cisco_iosxe` | [YangModels/yang](https://github.com/YangModels/yang), `vendor/cisco/xe` | `*-oper.yang` | 12,123 | 97% |
 | `arista_eos` | [aristanetworks/yang](https://github.com/aristanetworks/yang) | OpenConfig | 9,924 | 100% |
 
@@ -136,7 +176,7 @@ never a data defect.**
 ## Tests
 
 ```bash
-.venv/bin/python -m pytest -m "not lab"   # 91 tests, no network or hardware
+.venv/bin/python -m pytest -m "not lab"   # 101 tests, no network or hardware
 .venv/bin/python -m pytest -m lab         # 9 tests against a real containerlab
 ```
 

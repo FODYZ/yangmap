@@ -15,6 +15,7 @@ from yangmap import index as idx
 from yangmap import search
 from yangmap.errors import IndexError_, ResolutionError, YangmapError
 from yangmap.resolve import Ecart, resoudre
+from yangmap.valider import valider as valider_chemin
 
 RACINE_DEFAUT = Path.home() / ".yangmap"
 PLATEFORMES = ("nokia_sros", "cisco_iosxe", "arista_eos")
@@ -65,15 +66,17 @@ class Carte:
         plateforme: str,
         version: str | None = None,
         limite: int = 10,
+        arbre: str = "etat",
     ) -> dict[str, Any]:
         conn, res = self._ouvrir(plateforme, version)
         try:
-            trouves = search.chercher(conn, sujet, limite)
+            trouves = search.chercher(conn, sujet, limite, arbre=arbre)
         finally:
             conn.close()
 
         return {
             "plateforme": plateforme,
+            "arbre": arbre,
             "bundle_servi": str(res.version),
             "version_demandee": res.demandee,
             "ecart": res.ecart.value,
@@ -93,8 +96,11 @@ class Carte:
             "message": (
                 None if trouves else
                 f"No path matches {sujet!r} on {plateforme} "
-                f"{res.version}. Do not invent a path: rephrase, or "
-                f"conclude that this information isn't modeled."
+                f"{res.version} in the {arbre!r} tree. Do not invent a "
+                f"path: rephrase, try the other tree "
+                f"(`arbre=\"conf\"` holds CONFIGURATION, `arbre=\"etat\"` "
+                f"operational state), or conclude that this information "
+                f"is not modeled."
             ),
             # A path copied back without substituting its keys produces an
             # empty result, which netlive translated into "feature not
@@ -150,6 +156,51 @@ class Carte:
                 }
                 for f in fils
             ],
+        }
+
+
+    def valider(
+        self,
+        chemin: str,
+        plateforme: str,
+        version: str | None = None,
+    ) -> dict[str, Any]:
+        """Does this path exist, is it complete, and what will it return?
+
+        The question the model asks right before querying a device, and which
+        it could previously only answer by trying. A failed attempt returns an
+        empty response, which netlive translated into "feature not configured" —
+        a confidently wrong conclusion. Here, the reason is explicit and no
+        device was contacted.
+        """
+        conn, res = self._ouvrir(plateforme, version)
+        try:
+            v = valider_chemin(conn, chemin)
+        finally:
+            conn.close()
+
+        return {
+            "plateforme": plateforme,
+            "bundle_servi": str(res.version),
+            "ecart": res.ecart.value,
+            "avertissement": res.message,
+            "chemin_demande": chemin,
+            "verdict": v.verdict,
+            "interrogeable": v.interrogeable,
+            "motif": v.motif,
+            "chemin_valide_jusqu_a": v.chemin_valide,
+            "suggestions": list(v.suggestions),
+            "descendants": v.descendants,
+            "octets_estimes": v.octets_estimes,
+            "instances_non_bornees": v.instances_inconnues,
+            "cles_manquantes": list(v.cles_manquantes),
+            "noeud": None if v.noeud is None else {
+                "chemin": v.noeud.chemin,
+                "genre": v.noeud.genre,
+                "type": v.noeud.type,
+                "description": v.noeud.description,
+                "arbre": v.noeud.arbre,
+            },
         }
 
 

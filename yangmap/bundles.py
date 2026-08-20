@@ -86,12 +86,23 @@ def _fetch_nokia(cible: Version, dest: Path) -> str:
 
 def _modeles_nokia(racine: Path) -> tuple[list[Path], list[Path]]:
     yang = racine / "YANG"
-    # The combined model carries the whole state tree in one file: no
-    # `include` resolution to do, so no possible error on that front.
+    # The combined models each carry a whole tree in one file: no `include`
+    # resolution to do, so no possible error on that front.
     etat = yang / "nokia-combined" / "nokia-state.yang"
     if not etat.exists():
         raise BundleError(f"nokia-state.yang not found under {yang}")
-    return [etat], [yang, yang / "ietf"]
+
+    # The CONFIGURATION tree, added 2026-08-13. Its absence had a cost:
+    # on netlab, four yangmap queries returned nothing for `bgp group export-policy` —
+    # not because the path doesn't exist, but because no `/configure/...` was indexed.
+    # The right path, `/configure/router[]/bgp/group[]/export/policy`, had always
+    # been in `nokia-conf.yang`.
+    #
+    # It is not only for writing: SR OS responds to a gNMI Get on `/configure`,
+    # and "what policy is applied on this group" is a read-only diagnostic question.
+    conf = yang / "nokia-combined" / "nokia-conf.yang"
+    modeles = [etat] + ([conf] if conf.exists() else [])
+    return modeles, [yang, yang / "ietf"]
 
 
 # ---------------------------------------------------------------------------
