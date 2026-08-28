@@ -9,3 +9,19 @@ __pycache__/
 bundles/
 index/
 *.db
+
+# ==============================================================================
+# SÉCURITÉ & ANTI-FUITE DE SECRETS (Standardisé le 2026-08-28)
+# ==============================================================================
+.env
+.env.*
+!.env.example
+!.env.template
+*.pem
+*.key
+*.secret
+id_rsa
+id_ed25519
+*.bak
+*.bak-*
+.DS_Store
