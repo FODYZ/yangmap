@@ -35,7 +35,8 @@ Reconstruire l'index YANG avec `pyang` après modification d'un module YANG, pui
   → `105 passed, 3 skipped`.
 - **Construire l'index** (nécessite `pyang`) :
   ```bash
-  uv run --with pyang <commande d'indexation>
+  yangmap fetch <nokia_sros|cisco_iosxe|arista_eos> [version]   # seule commande réseau
+  uv run --with pyang yangmap build <nokia_sros|cisco_iosxe|arista_eos> [version]
   ```
   (`pyang` n'est nécessaire qu'au build, pas au runtime — ne pas l'ajouter aux deps du serveur).
 
