@@ -47,3 +47,13 @@ Keep this file for knowledge useful to almost every future agent session in this
 Do not repeat what the codebase already shows; point to the authoritative file or command instead.
 Prefer rewriting or pruning existing entries over appending new ones.
 When updating this file, preserve this bar for all agents and keep entries concise.
+
+## Pièges connus
+
+Repris des anciens `STATE.md` et `HANDOFF.md` du dépôt, supprimés le 2026-09-04.
+L'original reste dans l'historique Git.
+
+- `pyang` ne doit être ajouté que ponctuellement via `uv run --with pyang` pour le build de l'index, jamais comme dépendance runtime (invariant critique pour éviter la régression de poids).
+- Un changement de contrat de `yangmap` peut casser le consommateur `netlive`, exigeant le rejeu des suites de tests des deux dépôts.
+- Le recalibrage du golden set est strictement réservé aux cas avec une reason écrite explicitement documentée.
+- Aucune credential ni fichier `.env` ne doit être inclus dans l'index YANG généré.
